@@ -1,11 +1,12 @@
-# ai-memory 3.3.1 e contrato do proxy (#200, #202) · sessão `hanko-ai-memory-update`
-Data: 2026-11-01
+# Log das chamadas de memória encaminhadas (#207) · sessão `hanko-ai-memory-update`
+Data: 2026-11-02
 
 ## Feito
-- `hanko-prd` no ai-memory 3.3.1. Proxy `/memory-mcp` com lista de permitidos e escopo sempre nos argumentos (#203). v0.8.4 cortada; tag e deploy são pedidos do canal.
+- Proxy `/memory-mcp` registra `memory-mcp: chamada encaminhada` (tool, run, workspace, project; sem argumentos). Teste e RUNBOOK (pt-BR e en) atualizados.
+- Leitura em prd (v0.8.4): 0 runs e 0 propostas de memória desde o deploy; log com 0 `chamada fora do contrato`. O proxy novo ainda não recebeu tráfego.
 
 ## Travado
-- `GHSA-jjc6-c2mx-9fq7` segue em rascunho até a release sair. Não medido: dados no escopo padrão do ai-memory ou no workspace errado em prd.
+- `GHSA-jjc6-c2mx-9fq7` segue em rascunho (publicar é decisão do Bardi). Falta a primeira run com workspace em prd para testar o proxy de ponta a ponta.
 
 ## Próximo passo
-- Publicar o advisory; ler `memory-mcp: chamada fora do contrato` no log para decidir concessões; abrir a issue da fase 2 (credencial por empresa).
+- Depois da primeira run com memória: reler o log (`chamada encaminhada` e `fora do contrato`). Fase 2: #205.

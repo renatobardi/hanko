@@ -245,3 +245,21 @@ func TestMemoryProxyContraServidorReal(t *testing.T) {
 		t.Errorf("escrita global chegou a outra empresa: %s", out)
 	}
 }
+
+func TestMemoryProxyRegistraChamadaEncaminhadaSemConteudo(t *testing.T) {
+	m := setupMem(t, "t", nil)
+	m.post(t, m.tok, toolCallBody(1, "memory_query", `{"query":"segredo-do-cliente"}`), nil)
+	m.post(t, m.tok, toolCallBody(2, "memory_query", `{"query":"x","global":true}`), nil) // recusada: não vira "encaminhada"
+	out := m.logs.String()
+	if n := strings.Count(out, "chamada encaminhada"); n != 1 {
+		t.Fatalf("esperava 1 linha de chamada encaminhada, veio %d:\n%s", n, out)
+	}
+	for _, want := range []string{"tool=memory_query", "workspace=acme"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("log sem %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "segredo-do-cliente") {
+		t.Errorf("o log não pode levar o conteúdo da chamada:\n%s", out)
+	}
+}

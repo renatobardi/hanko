@@ -154,6 +154,7 @@ func (p *memoryProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return // respondido aqui (proposta registrada, chamada recusada)
 		}
 		body = pinScopeArgs(body, sc, home)
+		p.logAccepted(claims, sc, body)
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		r.ContentLength = int64(len(body))
 		r.Header.Del("Content-Length")
