@@ -153,6 +153,18 @@ func (p *memoryProxy) screen(ctx context.Context, w http.ResponseWriter, claims 
 	return body, memScope{workspace: sc.workspace, project: proj}, false
 }
 
+// logAccepted registra cada chamada de tool encaminhada ao ai-memory: só tool, run e escopo, nunca argumentos nem
+// conteúdo. É o que mostra, no log, se as personas já passam pelo proxy (as recusas já tinham linha própria).
+func (p *memoryProxy) logAccepted(claims auth.RunClaims, sc memScope, body []byte) {
+	calls, _, ok := parseToolCalls(body)
+	if !ok {
+		return
+	}
+	for _, c := range calls {
+		p.log.Info("memory-mcp: chamada encaminhada", "tool", c.name, "run_id", claims.RunID, "workspace", sc.workspace, "project", sc.project)
+	}
+}
+
 // refuseBatchTarget recusa o lote inteiro quando uma chamada mira outro workspace: a concessão vale por chamada.
 func (p *memoryProxy) refuseBatchTarget(w http.ResponseWriter, claims auth.RunClaims, sc memScope, calls []toolCall) bool {
 	for _, c := range calls {
