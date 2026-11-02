@@ -39,7 +39,10 @@ app em `/opt/app` com o `docker-compose.yml` da raiz (porta `3810`), `.env` gera
 nginx + certbot no host (`--edge`, mesmo padrão de `lab/scripts/ops/deploy-vault-vhost.sh`; o vhost escuta também em
 `100.66.254.24:443` por causa do split DNS da tailnet). O container e o vhost estão no `inventory.yaml` do lab (#280).
 ai-memory sobe no profile `memory` (`COMPOSE_PROFILES=memory` no `.env`); o digest fica fixado em `AI_MEMORY_IMAGE` no
-primeiro deploy — para atualizar, troque essa linha no `.env` do LXC e rode o deploy de novo.
+primeiro deploy — para atualizar, troque essa linha no `.env` do LXC e recrie só esse serviço
+(`docker compose up -d ai-memory`), com um backup antes. O `.env` do LXC vale sobre o digest do repo: mudar o repo não
+atualiza a produção. Antes de fixar outra versão, rode o teste de contrato contra um servidor de teste da versão nova:
+`HANKO_AI_MEMORY_CONTRACT_URL=http://127.0.0.1:49374 HANKO_AI_MEMORY_CONTRACT_TOKEN=... go test ./internal/memory/aimemory -run TestContractRealServer`.
 O texto abaixo descreve a variante genérica com `deploy/compose.yaml`.
 
 
@@ -392,7 +395,8 @@ Requer `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). Com `none` a seção "Memó
 - **Rodar agora:** botão "Consolidar agora" ou `hanko memory consolidate [workspace]`. Cria uma task de sistema por workspace; o custo entra no ledger e no orçamento como qualquer run. Uma rodada aberta por workspace; a que nunca rodou expira em 6 h.
 - **Gate `memory`:** remoções, fusões e reescritas da curadoria não chegam ao ai-memory; viram proposta e um gate na aba "Memória" do Inbox (diff e sha256). Aprovar enfileira `apply_memory_proposal`; rejeitar descarta. CLI: `hanko memory proposals|approve|reject <id>`.
 - **Falha ao aplicar:** a proposta fica `failed` com o erro e é tentada de novo (1 min a 6 h, 20 tentativas). Depois disso: `hanko memory retry <id>` ou o botão "Tentar de novo". Nada se perde.
-- **Concessões:** uma persona só alcança a memória do próprio workspace. Para outro workspace da empresa: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` para listar e remover).
+- **Concessões:** uma persona só alcança a memória do próprio workspace. Para outro workspace da empresa: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` para listar e remover). Projetos e tasks do mesmo workspace compartilham a memória; o escopo segue o workspace da run (task, projeto, persona).
+- **Contrato de tools:** o proxy `/memory-mcp` só aceita as tools e os argumentos de `internal/memory/args.go`. O resto é recusado e aparece no log como `memory-mcp: chamada fora do contrato`, só com os nomes. Ao fixar outra versão do ai-memory, `TestContractRealServer` aponta o que falta decidir. A busca das personas não traz a área global do ai-memory.
 - **Diff com conteúdo atual:** o padrão é `memory_read_page` (tool real do ai-memory); `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` no YAML) troca o nome; sem nenhuma o diff mostra só o proposto.
 
 | Sintoma | Causa provável | Ação |

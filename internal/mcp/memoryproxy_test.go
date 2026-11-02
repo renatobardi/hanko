@@ -126,7 +126,7 @@ func TestMemoryProxyHeadersEEscopoVemDoToken(t *testing.T) {
 	forged := map[string]string{
 		"X-Memory-Workspace": "outra-empresa", "x-memory-project": "alheio", "X-Memory-Extra": "1", "Cookie": "a=b",
 	}
-	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_briefing","arguments":{"workspace":"outra-empresa","project":"alheio","q":"x"}}}`
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_briefing","arguments":{"workspace":"outra-empresa","project":"alheio","recent_pages_limit":5}}}`
 	resp := m.post(t, m.tok, body, forged)
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
@@ -153,13 +153,13 @@ func TestMemoryProxyHeadersEEscopoVemDoToken(t *testing.T) {
 	}
 	var msg struct {
 		Params struct {
-			Arguments map[string]string `json:"arguments"`
+			Arguments map[string]any `json:"arguments"`
 		} `json:"params"`
 	}
 	if err := json.Unmarshal([]byte(c.body), &msg); err != nil {
 		t.Fatalf("corpo: %v %s", err, c.body)
 	}
-	if a := msg.Params.Arguments; a["workspace"] != "acme" || a["project"] != "default" || a["q"] != "x" {
+	if a := msg.Params.Arguments; a["workspace"] != "acme" || a["project"] != "default" || a["recent_pages_limit"] != float64(5) {
 		t.Errorf("argumentos = %v", a)
 	}
 }

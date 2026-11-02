@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ type pageIn struct {
 	Path      string `json:"path"`
 	Workspace string `json:"workspace,omitempty"`
 	Project   string `json:"project,omitempty"`
+	MaxChars  int    `json:"max_chars,omitempty"`
 }
 
 // curationServer é um ai-memory falso com uma tool de remoção e uma de leitura de página.
@@ -117,6 +119,36 @@ func TestReadPageSemToolConfiguradaEUnsupported(t *testing.T) {
 	p := New(Options{URL: cs.srv.URL, Token: testToken}).(memory.PageReader)
 	if _, err := p.ReadPage(context.Background(), memory.Scope{Workspace: "acme"}, "wiki/a"); !errors.Is(err, memory.ErrUnsupported) {
 		t.Errorf("err = %v; esperava ErrUnsupported", err)
+	}
+}
+
+func TestReadPageDevolveOCorpoEPedeOTetoDoServidor(t *testing.T) {
+	var args map[string]any
+	s := sdk.NewServer(&sdk.Implementation{Name: "ai-memory", Version: "3.3.1"}, nil)
+	resposta := `{"path":"wiki/a","body":"linha 1\nlinha 2","truncated":false,"total_chars":15}`
+	sdk.AddTool(s, &sdk.Tool{Name: "memory_read_page", Description: "read"}, func(_ context.Context, _ *sdk.CallToolRequest, in map[string]any) (*sdk.CallToolResult, any, error) {
+		args = in
+		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: resposta}}}, nil, nil
+	})
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return s }, nil))
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	p := New(Options{URL: srv.URL, ReadPageTool: "memory_read_page", Timeout: 3 * time.Second}).(memory.PageReader)
+	scope := memory.Scope{Workspace: "acme", Project: "api"}
+
+	txt, err := p.ReadPage(context.Background(), scope, "wiki/a")
+	if err != nil || txt != "linha 1\nlinha 2" {
+		t.Fatalf("ReadPage = %q, %v", txt, err)
+	}
+	if got, _ := args["max_chars"].(float64); got != readPageMaxChars {
+		t.Errorf("max_chars = %v; a 3.3 corta em 12.000 sem esse pedido", args["max_chars"])
+	}
+
+	resposta = `{"path":"wiki/a","body":"início","truncated":true,"total_chars":90000}`
+	txt, err = p.ReadPage(context.Background(), scope, "wiki/a")
+	if err != nil || !strings.HasPrefix(txt, "início") || !strings.Contains(txt, "90000") {
+		t.Fatalf("página cortada precisa avisar no diff: %q, %v", txt, err)
 	}
 }
 

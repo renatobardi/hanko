@@ -5,6 +5,25 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-11-01
+
+### ai-memory 3.3.1
+
+- O digest fixado do ai-memory passa a ser o da 3.3.1, no `docker-compose.yml`, no `.env.example` e no primeiro deploy de `deploy-prd.sh`, que antes usava `latest`. Uma instalação existente segue com o `AI_MEMORY_IMAGE` do seu `.env`.
+- O diff das propostas de curadoria mostra o texto da página, não o JSON da resposta, e pede o teto de 64.000 caracteres: a 3.3 corta em 12.000 sem esse pedido, e o resto da página pareceria removido. Página maior que o teto vem com aviso de corte.
+- As tools novas `memory_patch_page` e `memory_restore_page` entram na política de curadoria como retidas, e a proposta de um patch mostra as edições.
+- `deploy/compose.yaml` define `AI_MEMORY_ALLOWED_HOSTS`. Sem isso o servidor recusa o Hanko com 403.
+
+- English summary: the pinned ai-memory digest is now 3.3.1 (`docker-compose.yml`, `.env.example`, first `deploy-prd.sh` run, which used `latest`); existing installs keep their `.env` value. Curation diffs show the page text and request the 64,000-character ceiling, because 3.3 cuts at 12,000 by default. `memory_patch_page` and `memory_restore_page` are held for human review, and a patch proposal shows its edits. `deploy/compose.yaml` sets `AI_MEMORY_ALLOWED_HOSTS`, without which the server answers 403 to Hanko.
+
+### Proxy de memória mais estrito
+
+- O proxy `/memory-mcp` fixa o escopo da run em toda chamada e só aceita as tools e os argumentos revisados. O resto é recusado e fica no log, só com os nomes.
+- A memória da persona segue o workspace da run, na ordem task, projeto, persona. Antes, uma task que herdava o workspace do projeto podia usar a memória de outro lugar.
+- Personas passam a alcançar outro workspace só por concessão (`hanko memory grant`), e a busca delas não traz a área global do ai-memory.
+
+- English summary: the `/memory-mcp` proxy pins the run's scope on every call and only accepts reviewed tools and arguments; anything else is refused and logged by name. Persona memory follows the run's workspace (task, project, persona). Personas reach another workspace only through a grant, and their search no longer returns ai-memory's global area.
+
 ## [0.8.3] — 2026-11-01
 
 ### Alerta de disco do Postgres
@@ -89,6 +108,18 @@ English summary at the end of each release.
 - `scripts/hanko-diag.sh` coleta, só leitura e com segredos mascarados, o que o suporte precisa para diagnosticar "erros no log" e "persona sem acesso ao workspace": modo de execução (host, compose com imagem agents ou distroless), variáveis efetivas, `hanko doctor`, binários e login do harness, WARN/ERROR do servidor agrupados por mensagem, empresas, workspaces, personas, readiness, runs com falha e o log delas, permissões reais de cada caminho de workspace sob `HANKO_WORKSPACES_ROOT` e se o harness alcança a API em `HANKO_AGENT_URL` e o ai-memory.
 
 - English summary: `scripts/hanko-diag.sh` gathers, read-only and with secrets masked, what support needs to diagnose "errors in the log" and "persona has no access to the workspace": execution mode, effective variables, `hanko doctor`, harness binaries and login, server WARN/ERROR grouped by message, companies, workspaces, personas, readiness, failed runs and their logs, the real permissions of every workspace path under `HANKO_WORKSPACES_ROOT`, and whether the harness reaches the API at `HANKO_AGENT_URL` and ai-memory.
+
+### Compose de produção mede o disco do Postgres
+
+- O `docker-compose.yml` monta o volume `pgdata` só para leitura em `/pgdata-disk` no contêiner do Hanko e define `HANKO_DB_DISK_PATH`, o que liga o alerta `db_disk_low`. O Hanko só consulta o espaço livre do disco; não lê nem escreve nos dados do banco. Para desligar, tire a variável e a linha do volume (`docs/RUNBOOK.md`).
+
+- English summary: the production `docker-compose.yml` mounts the `pgdata` volume read-only at `/pgdata-disk` in the Hanko container and sets `HANKO_DB_DISK_PATH`, which turns on the `db_disk_low` alert. Hanko only queries the disk's free space; it neither reads nor writes the database files. To turn it off, remove the variable and the volume line (`docs/RUNBOOK.md`).
+
+### Recusa de tool nativa pelo modo do claude vem explicada na run
+
+- Numa run `claude` sem política de tools nativa para a persona, o hook `PreToolUse` não entra e vale o modo de permissão do próprio claude, que em modo headless recusa o que não libera sozinho (`git log`, `which gh` e outros comandos fora da lista dele). O evento "tools negadas por permissão" passa a dizer isso e a trazer o comando que libera (`hanko tool-policy set allow --persona <slug> --native <tool>`, ou a aba Política em Integrações). Com hook, em revisão ou em outro harness nada muda (ADR-0053).
+
+- English summary: in a `claude` run where the persona has no native tool policy, the `PreToolUse` hook is not installed and the harness's own headless permission mode denies anything it does not auto-allow. The "tools denied by permission" run event now says so and includes the command that grants the tool (`hanko tool-policy set allow --persona <slug> --native <tool>`, or the Policy tab under Integrations). Nothing changes with a hook, in review runs, or for other harnesses.
 
 ## [0.8.2] — 2026-10-31
 

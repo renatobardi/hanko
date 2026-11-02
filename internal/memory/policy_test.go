@@ -117,3 +117,26 @@ func TestUnifiedDiffEntradaEnormeNaoExplode(t *testing.T) {
 		t.Errorf("diff enorme: %d bytes", len(d))
 	}
 }
+
+func TestToolsDaVersao33SaoRetidas(t *testing.T) {
+	for _, tool := range []string{"memory_patch_page", "memory_restore_page"} {
+		if c := Classify(tool, map[string]any{"path": "a.md"}); c != ClassHeld {
+			t.Errorf("%s = %s; esperava held", tool, c)
+		}
+		if _, ok := confirmedClass[tool]; !ok {
+			t.Errorf("%s deveria estar em confirmedClass", tool)
+		}
+	}
+}
+
+func TestProposedOfMostraAsEdicoesDeUmPatch(t *testing.T) {
+	got := ProposedOf(map[string]any{"path": "a.md", "edits": []any{
+		map[string]any{"op": "replace_section", "anchor": "## Riscos", "section_sha256": "x", "content": "texto novo"},
+		map[string]any{"op": "append", "target": "end_of_page", "content": "fim"},
+	}})
+	for _, want := range []string{"replace_section", "## Riscos", "texto novo", "append", "fim"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("ProposedOf = %q; faltou %q", got, want)
+		}
+	}
+}

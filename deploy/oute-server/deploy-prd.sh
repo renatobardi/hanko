@@ -121,8 +121,8 @@ CFG
 mv .env.tmp .env; chmod 600 .env; rm -f .env.secrets
 # ai-memory (ADR-0015): digest fixado no primeiro deploy; atualizar = trocar AI_MEMORY_IMAGE no .env de propósito
 if ! grep -q '^AI_MEMORY_IMAGE=' .env; then
-  docker pull -q akitaonrails/ai-memory:latest >/dev/null
-  d=\$(docker image inspect --format '{{index .RepoDigests 0}}' akitaonrails/ai-memory:latest)
+  d=akitaonrails/ai-memory:3.3.1@sha256:d2dcf87d15b48fd0a96f46f0a9e9a69097f68c972971647847cd17a9ce08caba
+  docker pull -q \"\$d\" >/dev/null
   echo \"AI_MEMORY_IMAGE=\$d\" >> .env; echo \"==> ai-memory fixado em \$d\"
 fi"
 

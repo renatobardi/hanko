@@ -75,7 +75,7 @@ func TestWiringMemoriaCuradoriaRetemEscritaDestrutiva(t *testing.T) {
 
 	// leitura: segue ao ai-memory
 	code, _ := get(t, ts.URL, "POST", "/memory-mcp", "", tok,
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_search","arguments":{"q":"x"}}}`)
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_query","arguments":{"query":"x"}}}`)
 	if code != 200 || upstreamHits.Load() != 1 {
 		t.Fatalf("leitura: %d, upstream=%d", code, upstreamHits.Load())
 	}

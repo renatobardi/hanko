@@ -2,6 +2,8 @@ package aimemory
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/renatobardi/hanko/internal/memory"
@@ -51,5 +53,31 @@ func (p *provider) ReadPage(ctx context.Context, s memory.Scope, path string) (s
 	}
 	args := scopeArgs(s)
 	args["path"] = path
-	return p.callTool(ctx, p.readTool, args)
+	args["max_chars"] = readPageMaxChars
+	txt, err := p.callTool(ctx, p.readTool, args)
+	if err != nil {
+		return "", err
+	}
+	return pageBody(txt), nil
+}
+
+// readPageMaxChars é o teto de memory_read_page. Sem pedir, a 3.3 devolve só 12.000 caracteres, e o diff da
+// proposta mostraria o resto da página como se a curadoria o removesse.
+const readPageMaxChars = 64000
+
+// pageBody tira o corpo da resposta JSON de memory_read_page e avisa quando ele veio cortado. Resposta em
+// outro formato (tool configurada por HANKO_MEMORY_READ_TOOL) passa como veio.
+func pageBody(txt string) string {
+	var page struct {
+		Body       *string `json:"body"`
+		Truncated  bool    `json:"truncated"`
+		TotalChars int     `json:"total_chars"`
+	}
+	if json.Unmarshal([]byte(txt), &page) != nil || page.Body == nil {
+		return txt
+	}
+	if page.Truncated {
+		return fmt.Sprintf("%s\n\n[…página cortada pelo servidor: %d caracteres no total]", *page.Body, page.TotalChars)
+	}
+	return *page.Body
 }

@@ -97,6 +97,7 @@ services:
     restart: unless-stopped
     environment:
       AI_MEMORY_AUTH_TOKEN: ${AI_MEMORY_AUTH_TOKEN:-}
+      AI_MEMORY_ALLOWED_HOSTS: ai-memory,localhost,127.0.0.1   # sem isso o servidor recusa com 403 o Host do Hanko (http://ai-memory:49374)
     volumes:
       - aimemory:/data
     ports:
