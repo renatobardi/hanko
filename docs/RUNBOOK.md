@@ -355,6 +355,7 @@ A imagem de contêiner (distroless) não tem `pg_dump`: lá a tela de Backups fi
 | Hanko não sobe: `HANKO_DATABASE_URL é obrigatório` | env/yaml sem URL | defina `HANKO_DATABASE_URL`; confira `HANKO_CONFIG` |
 | `db: ping após 5 tentativa(s)` | Postgres fora/senha errada | `docker compose ps postgres`, healthcheck, senha no `.env` |
 | Aviso `falha de exportação OpenTelemetry` | collector (LGTM) fora | **não derruba o app**: dados de telemetria ficam sem destino até voltar. `docker compose up -d otel-lgtm`; confira `OTEL_EXPORTER_OTLP_ENDPOINT`. `/metrics` segue funcionando (pull) |
+| Aviso `métrica hanko_alerts_open: leitura dos alertas falhou` | Postgres fora ou lento na hora da coleta de `/metrics` | o gauge fica sem ponto nessa coleta e as demais métricas seguem; some quando o banco volta (um aviso a cada 5 min, o resto em debug) |
 | Aviso `ai-memory indisponível no boot` | ai-memory fora ou token errado | app **degrada**: runs abrem sem briefing, fatos ficam em `memory_outbox` e drenam quando voltar. `docker compose logs ai-memory`; confira `HANKO_MEMORY_URL`/`HANKO_MEMORY_TOKEN` |
 | Aviso `HANKO_SECRET não definido` | secret gerado por boot | defina `HANKO_SECRET`; sem isso, run tokens de runs em andamento invalidam a cada restart |
 | Runs ficam `queued` | heartbeat parado, `Workers` baixo ou CLI do agente ausente | log do hanko; `HANKO_WORKERS`; `claude`/`codex` no PATH (ou `Dockerfile.agents`) |

@@ -1,8 +1,10 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -26,6 +28,15 @@ func (f fakeAlertCounter) AlertCounts(context.Context) (map[domain.AlertKind]int
 
 func scrape(t *testing.T, c alertCounter) string {
 	t.Helper()
+	body, _ := scrapeLogged(t, c)
+	return body
+}
+
+// scrapeLogged coleta /metrics e devolve também o que o gauge logou.
+func scrapeLogged(t *testing.T, c alertCounter) (string, string) {
+	t.Helper()
+	var logs bytes.Buffer
+	l := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	reg := prometheus.NewRegistry()
 	exp, err := promexporter.New(promexporter.WithRegisterer(reg))
 	if err != nil {
@@ -33,12 +44,14 @@ func scrape(t *testing.T, c alertCounter) string {
 	}
 	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exp))
 	t.Cleanup(func() { _ = mp.Shutdown(context.Background()) })
-	if err := registerAlertMetrics(mp.Meter("hanko"), c); err != nil {
+	if err := registerAlertMetrics(mp.Meter("hanko"), c, l); err != nil {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	promhttp.HandlerFor(reg, promhttp.HandlerOpts{}).ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
-	return rec.Body.String()
+	h := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/metrics", nil)) // segunda coleta: o aviso não repete
+	return rec.Body.String(), logs.String()
 }
 
 // O gauge sai em /metrics com um ponto por tipo, zero incluído.
@@ -63,10 +76,20 @@ func TestAlertGaugeEmMetrics(t *testing.T) {
 	}
 }
 
-// Falha ao ler o banco não derruba a coleta das demais métricas.
+// Falha ao ler o banco não derruba a coleta das demais métricas, e é logada pelo próprio gauge (um WARN, depois
+// debug), não pelo handler de erros do OpenTelemetry, que a rotularia como falha de exportação.
 func TestAlertGaugeErroDeLeitura(t *testing.T) {
-	body := scrape(t, fakeAlertCounter{err: errors.New("db fora")})
+	body, logs := scrapeLogged(t, fakeAlertCounter{err: errors.New("db fora")})
 	if strings.Contains(body, "hanko_alerts_open{") {
 		t.Fatalf("sem leitura não há ponto:\n%s", body)
+	}
+	if strings.Count(logs, "level=WARN") != 1 || !strings.Contains(logs, "leitura dos alertas falhou") || !strings.Contains(logs, "db fora") {
+		t.Fatalf("esperava um WARN do gauge com o erro do banco:\n%s", logs)
+	}
+	if strings.Count(logs, "level=DEBUG") != 1 {
+		t.Fatalf("a segunda coleta vai para debug:\n%s", logs)
+	}
+	if strings.Contains(logs, "exportação") {
+		t.Fatalf("o erro do banco não pode sair como falha de exportação:\n%s", logs)
 	}
 }

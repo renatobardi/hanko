@@ -184,7 +184,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	}
 	startPlugins, stopPlugins := setupPlugins(cfg, svc, logger, version)
 	defer stopPlugins()
-	if err := registerAlertMetrics(otel.Meter(serviceName), svc); err != nil {
+	if err := registerAlertMetrics(otel.Meter(serviceName), svc, logger); err != nil {
 		return err
 	}
 	migratePersonaEnvAtBoot(ctx, svc, box.Enabled(), logger)
