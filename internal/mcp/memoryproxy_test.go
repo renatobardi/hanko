@@ -2,9 +2,11 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -56,6 +58,24 @@ type upstreamCall struct {
 	body           string
 }
 
+// syncBuf é um buffer seguro para o logger do proxy, que escreve de outra goroutine.
+type syncBuf struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuf) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
 type memEnv struct {
 	*env
 	proxy    *httptest.Server
@@ -64,6 +84,7 @@ type memEnv struct {
 	calls    []upstreamCall
 	backend  *memFake
 	pages    *fakePages
+	logs     *syncBuf
 }
 
 func (m *memEnv) last(t *testing.T) upstreamCall {
@@ -79,7 +100,7 @@ func (m *memEnv) last(t *testing.T) upstreamCall {
 func setupMem(t *testing.T, memToken string, upstream http.HandlerFunc) *memEnv {
 	t.Helper()
 	e := setup(t, false)
-	m := &memEnv{env: e, backend: &memFake{fake: e.f, ws: map[domain.ID]domain.Workspace{}}, pages: &fakePages{pages: map[string]string{}}}
+	m := &memEnv{env: e, backend: &memFake{fake: e.f, ws: map[domain.ID]domain.Workspace{}}, pages: &fakePages{pages: map[string]string{}}, logs: &syncBuf{}}
 	if upstream == nil {
 		upstream = func(w http.ResponseWriter, r *http.Request) {
 			b, _ := io.ReadAll(r.Body)
@@ -92,7 +113,8 @@ func setupMem(t *testing.T, memToken string, upstream http.HandlerFunc) *memEnv 
 	}
 	m.upstream = httptest.NewServer(upstream)
 	t.Cleanup(m.upstream.Close)
-	h, err := MemoryProxy(MemoryProxyDeps{Backend: m.backend, Tokens: e.tokens, URL: m.upstream.URL + "/", Token: memToken, Pages: m.pages})
+	h, err := MemoryProxy(MemoryProxyDeps{Backend: m.backend, Tokens: e.tokens, URL: m.upstream.URL + "/", Token: memToken, Pages: m.pages,
+		Logger: slog.New(slog.NewTextHandler(m.logs, nil))})
 	if err != nil {
 		t.Fatal(err)
 	}
