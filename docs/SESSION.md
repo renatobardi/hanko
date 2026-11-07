@@ -1,13 +1,12 @@
 # Correções do diagnóstico da produção · sessão `bold-ptolemy`
-Data: 2026-11-02
+Data: 2026-11-07
 
 ## Feito
-- #183 (gateway `Mcp-Param-*` + script de diagnóstico) e #193 (recusa de Bash explicada na run) mesclados; #183 em produção, #193 aguarda deploy.
-- Item 3: o gauge `hanko_alerts_open` loga a própria falha de leitura (WARN a cada 5 min, resto debug) e devolve nil ao SDK; o erro de banco deixa de sair como "falha de exportação OpenTelemetry" (`internal/app/alertmetrics.go`; teste cobre o log e a ausência de ponto). Linha no troubleshooting do RUNBOOK e fragmento em `changelog.d/`.
-- Operação pelo Bardi: catálogo do GitHub atualizado, política `allow Bash` para `delivery-manager`, API keys expostas revogadas.
+- #183, #193 e #206 mesclados e em produção (`62211e1a`).
+- Item 4: readiness ganha o passo `secrets` (toda `${secret:}` resolve; `${secretfile:}` existe, está ao alcance da persona e cabe em arquivo) e o passo `model` recusa nome de família de preço (`claude-haiku`); o catálogo deixa de oferecer as famílias. Enum da API regenerado, rótulos na UI e no catálogo i18n, linhas no RUNBOOK, fragmento em `changelog.d/`, testes em `readiness`, `domain`, `service` e `api`.
 
 ## Travado
 - Nada.
 
 ## Próximo passo
-- (4) readiness falhar com `${secret:}` inexistente e alias de modelo fora do catálogo (`internal/readiness/readiness.go`, `internal/service/readiness.go`); (5) chat usar o workspace do projeto quando a persona não tem (`internal/service/conversations.go:562`); (6) decidir se o Hanko passa a fazer push da branch do worktree (revisar ADR-0054) ou documentar o caminho via GitHub MCP (`create_branch`/`push_files`/`create_pull_request`).
+- (5) chat usar o workspace do projeto quando a persona não tem (`internal/service/conversations.go:562`; precedência task > projeto > persona de `internal/service/runworkspace.go`); (6) decidir se o Hanko passa a fazer push da branch do worktree (revisar ADR-0054 → ADR novo) ou documentar o caminho via GitHub MCP (`create_branch`/`push_files`/`create_pull_request`).
