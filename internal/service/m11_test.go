@@ -362,7 +362,7 @@ func TestReadinessBlocksDispatchAndAlerts(t *testing.T) {
 	for _, s := range rd.Steps {
 		names = append(names, s.Name)
 	}
-	if strings.Join(names, ",") != "environment,binary,auth,model" {
+	if strings.Join(names, ",") != "secrets,environment,binary,auth,model" {
 		t.Fatalf("passos nomeados: %v", names)
 	}
 	// o despacho é recusado com o motivo

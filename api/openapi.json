@@ -17394,8 +17394,9 @@
             "type": "string"
           },
           "name": {
-            "description": "environment: o ambiente responde; binary: o binário do harness existe; auth: há login ou chave de API; model: o modelo é válido e tem preço.",
+            "description": "secrets: as referências ${secret:}/${secretfile:} do adapter_config existem e a persona as alcança; environment: o ambiente responde; binary: o binário do harness existe; auth: há login ou chave de API; model: o modelo é válido e tem preço.",
             "enum": [
+              "secrets",
               "environment",
               "binary",
               "auth",

@@ -116,11 +116,11 @@ func TestAPIReadinessAndModels(t *testing.T) {
 		t.Fatalf("nunca testada: %+v", r)
 	}
 	e.want(200, "POST", path, "", &r)
-	if r.Status != "not_ready" || !r.Blocking || !strings.HasPrefix(r.Reason, "auth:") || r.Agent != "claude" || len(r.Steps) != 4 || r.Steps[2].Name != "auth" || r.Steps[2].Status != "fail" {
+	if r.Status != "not_ready" || !r.Blocking || !strings.HasPrefix(r.Reason, "auth:") || r.Agent != "claude" || len(r.Steps) != 5 || r.Steps[0].Name != "secrets" || r.Steps[3].Name != "auth" || r.Steps[3].Status != "fail" {
 		t.Fatalf("auth quebrada: %+v", r)
 	}
-	if r.Steps[3].Name != "model" || r.Steps[3].Status != "warn" {
-		t.Fatalf("modelo sem preço deveria ser aviso: %+v", r.Steps[3])
+	if r.Steps[4].Name != "model" || r.Steps[4].Status != "warn" {
+		t.Fatalf("modelo sem preço deveria ser aviso: %+v", r.Steps[4])
 	}
 	var again api.PersonaReadiness
 	e.want(200, "GET", path, "", &again)

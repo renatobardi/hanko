@@ -21,14 +21,14 @@ func TestOnboardingStepsAreDerivedAndResumable(t *testing.T) {
 	// probe que falha: o passo continua aberto e o motivo fica guardado
 	e.svc.ReadinessRunner = scriptRunner("bin=/usr/bin/claude\nversion=2.0\nauth=none\n", nil, nil)
 	res, err := e.svc.OnboardingProbe(ctx, domain.HumanActor, e.co.ID, "claude", "")
-	if err != nil || res.Status != domain.ReadinessNotReady || res.Reason == "" || len(res.Steps) != 4 {
+	if err != nil || res.Status != domain.ReadinessNotReady || res.Reason == "" || len(res.Steps) != 5 {
 		t.Fatalf("probe sem login: %+v %v", res, err)
 	}
 	if st, _ = e.svc.OnboardingStatus(ctx, e.co.ID); st.Current != domain.StepHarness || st.HarnessStatus != "not_ready" || st.HarnessAgent != "claude" {
 		t.Fatalf("depois do probe ruim: %+v", st)
 	}
 	last, err := e.svc.OnboardingLastProbe(ctx, e.co.ID)
-	if err != nil || last == nil || last.Status != domain.ReadinessNotReady || len(last.Steps) != 4 {
+	if err != nil || last == nil || last.Status != domain.ReadinessNotReady || len(last.Steps) != 5 {
 		t.Fatalf("último probe: %+v %v", last, err)
 	}
 
