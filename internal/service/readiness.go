@@ -128,7 +128,12 @@ func (s *Service) checkReadiness(ctx context.Context, actor domain.Actor, compan
 			tg = execenv.Target{Driver: domain.EnvironmentDriver(res.env.Driver)}
 		}
 	}
-	cfg, _, cfgErr := s.ResolveAdapterConfig(ctx, companyID, p.ID, p.AdapterConfig)
+	// segredos do adapter_config: o passo "secrets" falha com o motivo (nome da referência, nunca o valor)
+	cfg, refs, cfgErr := s.ResolveProbeAdapterConfig(ctx, companyID, p.ID, p.AdapterConfig)
+	secretErr := ""
+	if cfgErr != nil {
+		secretErr = cfgErr.Error()
+	}
 	prices, err := q.ListModelPrices(ctx)
 	if err != nil {
 		return domain.Readiness{}, fmt.Errorf("list model prices: %w", err)
@@ -138,17 +143,15 @@ func (s *Service) checkReadiness(ctx context.Context, actor domain.Actor, compan
 		priceModels[i] = pr.Model
 	}
 
-	in := readiness.Input{Agent: p.Agent, Model: p.Model, AdapterConfig: cfg, EnvironmentName: envName, PriceModels: priceModels}
+	in := readiness.Input{Agent: p.Agent, Model: p.Model, AdapterConfig: cfg, EnvironmentName: envName, PriceModels: priceModels,
+		SecretRefs: refs, SecretErr: secretErr}
 	cctx, cancel := context.WithTimeout(ctx, readinessTimeout)
 	defer cancel()
 	var out readiness.Result
-	switch {
-	case tgErr != nil:
+	if tgErr != nil {
 		// segredo do ambiente indisponível: o passo "environment" falha com o motivo (sem o valor)
 		out = readiness.Check(cctx, s.Readiness, in, func(context.Context, string, map[string]string) ([]byte, error) { return nil, tgErr })
-	case cfgErr != nil:
-		out = readiness.Check(cctx, s.Readiness, in, func(context.Context, string, map[string]string) ([]byte, error) { return nil, cfgErr })
-	default:
+	} else {
 		out = readiness.Check(cctx, s.Readiness, in, func(c context.Context, script string, env map[string]string) ([]byte, error) {
 			return s.runReadinessScript(c, tg, script, env)
 		})

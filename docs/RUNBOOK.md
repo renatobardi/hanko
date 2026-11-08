@@ -369,6 +369,8 @@ A imagem de contêiner (distroless) não tem `pg_dump`: lá a tela de Backups fi
 | Agente não enxerga uma variável de ambiente | env filtrado (allowlist) | `HANKO_AGENT_ENV_ALLOW=NOME` (ou `adapter_config.env` numa persona `acp`) |
 | Run `acp` falha com "não respondeu ao initialize" | o comando não fala ACP v1 por stdio (ou demora mais que `init_timeout_sec`) | rode o comando à mão; o erro traz as últimas linhas de stdout/stderr (§ Agentes ACP) |
 | Run `acp` termina em segundos sem editar nada | política `read_only` (padrão) recusou a edição | veja os eventos "permissão negada" no log; contrate com `permission: allow` se for o caso |
+| Persona "não pronta" com `secrets: segredo não resolvido: ${secret:X}` (ou `${secretfile:X}`) | o `adapter_config` da persona cita um segredo que não existe, que ela não alcança (nenhuma coleção com o item foi concedida a ela, ADR-0068) ou cujo campo não cabe no uso | crie ou reponha o segredo (`hanko secret set X`), ou conceda a coleção à persona; "Testar agora" libera o despacho |
+| Persona "não pronta" com `model: claude-haiku é a família de preço, não um modelo` | o modelo da persona é o nome de uma família de `model_prices`, que o harness não aceita em `--model` | troque pelo alias (`haiku`, `sonnet`, `opus`) ou pelo id completo do modelo (`hanko model list --agent claude`) |
 | Run `claude` termina com "tools negadas por permissão: Bash" (ou Edit, Read…) e a persona diz que não consegue executar comandos | persona sem política de tools nativa: o hook não entra e vale o modo headless do claude, que recusa o que não libera sozinho | `hanko tool-policy set allow --persona <slug> --native Bash` (ou aba Política em Integrações); o evento da run traz o comando |
 | Tool de integração falha com `servidor MCP recusou (-32020): header mismatch: missing Mcp-Param-<nome> header` | servidor remoto exige o parâmetro também como cabeçalho (`x-mcp-header` no schema) e o Hanko é anterior a essa regra | atualize o Hanko: o gateway repete o parâmetro como `Mcp-Param-<nome>` a partir do schema; depois `Integrações › Tools › Atualizar catálogo` para o schema entrar |
 | `HANKO_SECRET exige…` / `HANKO_PUBLIC_URL exige https` no boot | modo authenticated sem secret de 32 bytes ou com URL http fora de loopback | `openssl rand -hex 32`; use `https://…` (ou loopback para teste local) |
@@ -960,10 +962,12 @@ gravável, binários (`tar`, `git`, `claude`, `codex`) e, em alvos remotos com r
 
 ## Prontidão da persona e catálogo de modelos (ADR-0055)
 
-Antes de uma execução falhar por falta de login, o Hanko testa o harness da persona **no ambiente dela**: binário (`claude`, `codex`,
-o comando do ACP), login ou chave de API (`claude auth status`, `codex login status`, credenciais em arquivo ou chave no env) e
-modelo (formato e preço). O teste não chama o modelo: não gasta tokens. Os passos têm nome (`environment`, `binary`, `auth`,
-`model`; `ok`, `warn`, `fail`, `skip`) e ficam em `persona_readiness`.
+Antes de uma execução falhar por falta de login, o Hanko testa o harness da persona **no ambiente dela**: segredos referenciados
+no `adapter_config` (`${secret:}` resolve, `${secretfile:}` existe, a persona alcança o item pelas coleções, o campo cabe no uso),
+binário (`claude`, `codex`, o comando do ACP), login ou chave de API (`claude auth status`, `codex login status`, credenciais em
+arquivo ou chave no env) e modelo (formato, família e preço: `claude-haiku` é família de preço, não modelo; o harness aceita o alias
+`haiku` ou o id completo). O teste não chama o modelo: não gasta tokens. Os passos têm nome (`secrets`, `environment`, `binary`,
+`auth`, `model`; `ok`, `warn`, `fail`, `skip`) e ficam em `persona_readiness`.
 
 - **Quando roda:** "Testar agora" na página da persona (logo depois da contratação a tela já testa), `hanko persona test <persona>` e
   o job periódico `readiness_tick` (até 20 personas por passada: as nunca testadas primeiro, depois as de teste mais velho que

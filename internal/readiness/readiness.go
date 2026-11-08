@@ -1,5 +1,6 @@
-// Package readiness decide se o harness de uma persona consegue rodar (ADR-0055, #10): o binário existe no ambiente
-// de execução, há credencial utilizável e o modelo é conhecido. O pacote não conhece banco nem rede: monta o script
+// Package readiness decide se o harness de uma persona consegue rodar (ADR-0055, #10): os segredos referenciados
+// resolvem, o binário existe no ambiente de execução, há credencial utilizável e o modelo é conhecido. O pacote não
+// conhece banco nem rede: recebe a resolução dos segredos pronta de quem chama, monta o script
 // POSIX de cada harness, entrega a um Runner (que o executa no ambiente da persona) e traduz a saída em passos
 // nomeados. O probe nunca chama o modelo: não gasta tokens.
 package readiness
@@ -50,6 +51,12 @@ type Input struct {
 	EnvironmentName string
 	// PriceModels são os prefixos de model_prices (para o aviso de modelo sem preço).
 	PriceModels []string
+	// SecretRefs são as referências ${secret:}/${secretfile:} do adapter_config (nomes, nunca valores), para o
+	// detalhe do passo "secrets".
+	SecretRefs []string
+	// SecretErr é o motivo quando alguma referência não resolveu (não existe, fora do alcance da persona, campo errado);
+	// vazio quando todas resolveram. Com erro, o ambiente nem é consultado: sem os segredos a run não sai.
+	SecretErr string
 }
 
 // Result é o resultado do probe.
@@ -164,6 +171,14 @@ func Check(ctx context.Context, cfg Config, in Input, run Runner) Result {
 		res.DurationMs = int(time.Since(start).Milliseconds())
 		return res
 	}
+	res.Steps = append(res.Steps, secretsStep(in))
+	if in.SecretErr != "" {
+		add(domain.StepEnvironment, domain.StepSkip, "sem os segredos o ambiente não foi consultado")
+		add(domain.StepBinary, domain.StepSkip, "")
+		add(domain.StepAuth, domain.StepSkip, "")
+		res.Steps = append(res.Steps, skipModel(in))
+		return finish()
+	}
 	scriptText, err := Script(cfg, in.Agent, commandOf(in.AdapterConfig))
 	if err != nil {
 		add(domain.StepEnvironment, domain.StepSkip, "")
@@ -186,34 +201,54 @@ func Check(ctx context.Context, cfg Config, in Input, run Runner) Result {
 		d = "local"
 	}
 	add(domain.StepEnvironment, domain.StepOK, d)
-	if p.bin == "" {
-		add(domain.StepBinary, domain.StepFail, fmt.Sprintf("o binário do harness %s não foi encontrado no PATH do ambiente", in.Agent))
-	} else {
-		d := p.bin
-		if p.version != "" {
-			d += " (" + clip(p.version) + ")"
-		}
-		add(domain.StepBinary, domain.StepOK, d)
-	}
-	switch {
-	case p.bin == "":
-		add(domain.StepAuth, domain.StepSkip, "sem o binário não há como verificar")
-	case p.auth == "env":
-		add(domain.StepAuth, domain.StepOK, "chave de API no ambiente da persona ou do servidor")
-	case p.auth == "login":
-		add(domain.StepAuth, domain.StepOK, "login do harness")
-	case p.auth == "skip":
-		add(domain.StepAuth, domain.StepSkip, "não se aplica")
-	case p.auth == "unknown":
-		add(domain.StepAuth, domain.StepSkip, "o harness acp autentica por conta própria; não dá para verificar daqui")
-	default:
-		add(domain.StepAuth, domain.StepFail, authHint(in.Agent))
-	}
-	res.Steps = append(res.Steps, modelStep(in))
+	res.Steps = append(res.Steps, binaryStep(in, p), authStep(in, p), modelStep(in))
 	if st, _ := domain.SummarizeReadiness(res.Steps); st == domain.ReadinessReady && in.Model != "" {
 		res.ReportedModels = []string{in.Model}
 	}
 	return finish()
+}
+
+// secretsStep resume a resolução das referências do adapter_config, feita por quem chama (o pacote não lê cofre):
+// falha com o motivo, ok com os nomes resolvidos (nunca os valores) ou skip quando não há referência.
+func secretsStep(in Input) domain.ReadinessStep {
+	switch {
+	case in.SecretErr != "":
+		return domain.ReadinessStep{Name: domain.StepSecrets, Status: domain.StepFail, Detail: clip(in.SecretErr)}
+	case len(in.SecretRefs) == 0:
+		return domain.ReadinessStep{Name: domain.StepSecrets, Status: domain.StepSkip, Detail: "o adapter_config não referencia segredos"}
+	}
+	return domain.ReadinessStep{Name: domain.StepSecrets, Status: domain.StepOK, Detail: clip(strings.Join(in.SecretRefs, ", "))}
+}
+
+func binaryStep(in Input, p parsed) domain.ReadinessStep {
+	if p.bin == "" {
+		return domain.ReadinessStep{Name: domain.StepBinary, Status: domain.StepFail,
+			Detail: fmt.Sprintf("o binário do harness %s não foi encontrado no PATH do ambiente", in.Agent)}
+	}
+	d := p.bin
+	if p.version != "" {
+		d += " (" + clip(p.version) + ")"
+	}
+	return domain.ReadinessStep{Name: domain.StepBinary, Status: domain.StepOK, Detail: d}
+}
+
+func authStep(in Input, p parsed) domain.ReadinessStep {
+	st := domain.ReadinessStep{Name: domain.StepAuth, Status: domain.StepSkip}
+	switch {
+	case p.bin == "":
+		st.Detail = "sem o binário não há como verificar"
+	case p.auth == "env":
+		st.Status, st.Detail = domain.StepOK, "chave de API no ambiente da persona ou do servidor"
+	case p.auth == "login":
+		st.Status, st.Detail = domain.StepOK, "login do harness"
+	case p.auth == "skip":
+		st.Detail = "não se aplica"
+	case p.auth == "unknown":
+		st.Detail = "o harness acp autentica por conta própria; não dá para verificar daqui"
+	default:
+		st.Status, st.Detail = domain.StepFail, authHint(in.Agent)
+	}
+	return st
 }
 
 func authHint(agent string) string {
@@ -236,6 +271,11 @@ func modelStep(in Input) domain.ReadinessStep {
 		return domain.ReadinessStep{Name: domain.StepModel, Status: domain.StepOK, Detail: "padrão do harness"}
 	case !modelRe.MatchString(m):
 		return domain.ReadinessStep{Name: domain.StepModel, Status: domain.StepFail, Detail: fmt.Sprintf("nome de modelo inválido: %q", clip(m))}
+	}
+	if alias, fam := domain.ModelFamilyAlias(m); fam {
+		// o harness não aceita o nome da família: a run falharia na primeira chamada ao modelo
+		return domain.ReadinessStep{Name: domain.StepModel, Status: domain.StepFail,
+			Detail: fmt.Sprintf("%s é a família de preço, não um modelo que o harness aceite: use o alias %q ou o id completo do modelo", m, alias)}
 	}
 	if _, ok := domain.MatchPrice(in.PriceModels, m); !ok {
 		return domain.ReadinessStep{Name: domain.StepModel, Status: domain.StepWarn, Detail: m + ": sem preço próprio; o custo é estimado com o preço de reserva"}
