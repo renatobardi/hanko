@@ -458,10 +458,10 @@ func (s *server) handleTaskGit(w http.ResponseWriter, r *http.Request, co domain
 	if wt := v.Worktree; wt != nil {
 		vm.Branch, vm.Base, vm.Head, vm.State, vm.WtError = wt.Branch, dashText(wt.BaseBranch), shortSHA(v.HeadSHA), worktreeBadge(ctx, wt.State), wt.Error
 		vm.CanPush = wt.State == domain.WorktreeReady || wt.State == domain.WorktreeDiverged || wt.State == domain.WorktreeRemoved
-		switch {
-		case wt.PushedSHA == "":
+		switch wt.PushedSHA {
+		case "":
 			vm.Pushed = i18n.T(ctx, "nunca")
-		case wt.PushedSHA == v.HeadSHA:
+		case v.HeadSHA:
 			vm.Pushed = i18n.T(ctx, "em dia") + " (" + shortSHA(wt.PushedSHA) + ")"
 		default:
 			vm.Pushed = i18n.T(ctx, "atrasado") + " (" + shortSHA(wt.PushedSHA) + ")"
