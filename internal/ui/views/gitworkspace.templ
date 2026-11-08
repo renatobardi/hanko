@@ -211,6 +211,11 @@ templ TaskGitPage(sh Shell, vm TaskGitVM) {
 			</div>
 			<div class="flow-acts">
 				<a class="btn outline" href={ templ.SafeURL(vm.TaskHref) }>{ i18n.T(ctx, "Voltar à task") }</a>
+				if canWrite(ctx) && vm.CanPush && vm.MirrorOK {
+					<form method="post" action={ templ.SafeURL(vm.PushAction) } hx-boost="true">
+						<button class="btn primary" type="submit" title={ i18n.T(ctx, "Envia a branch ao repositório remoto com a credencial do workspace; alterações soltas viram um commit antes.") }>{ i18n.T(ctx, "Enviar branch") }</button>
+					</form>
+				}
 				if canAdmin(ctx) && vm.Live {
 					<form method="post" action={ templ.SafeURL(vm.CleanAction) } hx-boost="true">
 						<button class="btn outline" type="submit">{ i18n.T(ctx, "Limpar worktree") }</button>
@@ -230,6 +235,9 @@ templ TaskGitPage(sh Shell, vm TaskGitVM) {
 				}
 			</div></div>
 		</div>
+		if vm.Pushed != "" {
+			<p class="muted text-sm mb-3">{ i18n.T(ctx, "Envio ao remoto:") } { vm.Pushed }</p>
+		}
 		if vm.WtError != "" {
 			@Alert("danger", vm.WtError)
 		}

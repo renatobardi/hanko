@@ -80,6 +80,11 @@ func (c *Client) TaskGitFile(ctx context.Context, company, ref, path string) (ap
 	return out, err
 }
 
+// PushTaskWorktree envia a branch do worktree da task ao remoto (ADR-0091).
+func (c *Client) PushTaskWorktree(ctx context.Context, company, ref string) (api.GitPush, error) {
+	return get[api.GitPush](ctx, c, http.MethodPost, taskGit(company, ref)+"/push", nil)
+}
+
 func (c *Client) RemoveTaskWorktree(ctx context.Context, company, ref string) error {
 	return c.do(ctx, http.MethodDelete, taskGit(company, ref)+"/worktree", nil, nil, nil)
 }

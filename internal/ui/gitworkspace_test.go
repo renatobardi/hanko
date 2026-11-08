@@ -3,6 +3,7 @@ package ui
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +38,22 @@ func TestTaskGitPageTabs(t *testing.T) {
 
 	rec := e.get(t, base)
 	wantStatus(t, rec, http.StatusOK)
-	wantContains(t, rec, strings.ToLower(task.Key), "pronto", "README.md", "novo.txt", "À frente", "Diff", "Log", "Arquivos")
+	wantContains(t, rec, strings.ToLower(task.Key), "pronto", "README.md", "novo.txt", "À frente", "Diff", "Log", "Arquivos",
+		"Enviar branch", "Envio ao remoto:", "nunca")
+
+	// enviar a branch (ADR-0091): redireciona com o aviso e a aba passa a mostrar "em dia"; de novo, "nada enviado"
+	rec = e.post(t, base+"/enviar", nil, false)
+	wantStatus(t, rec, http.StatusSeeOther)
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "ok=git-enviado") {
+		t.Fatalf("Location = %q", loc)
+	}
+	if !slices.Contains(f.Calls, "PushTaskWorktree") {
+		t.Fatal("o backend deveria ter enviado a branch")
+	}
+	wantContains(t, e.get(t, base), "em dia")
+	if loc := e.post(t, base+"/enviar", nil, false).Header().Get("Location"); !strings.Contains(loc, "ok=git-em-dia") {
+		t.Fatalf("segundo envio: Location = %q", loc)
+	}
 
 	rec = e.get(t, base+"?aba=diff")
 	wantStatus(t, rec, http.StatusOK)

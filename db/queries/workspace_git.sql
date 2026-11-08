@@ -59,6 +59,12 @@ SET state = @state, base_sha = COALESCE(sqlc.narg(base_sha), base_sha), head_sha
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
 
+-- name: SetTaskWorktreePushed :one
+-- Registra o último commit da branch enviado ao remoto (ADR-0091).
+UPDATE task_worktrees SET pushed_sha = @pushed_sha, pushed_at = @now, updated_at = @now
+WHERE company_id = @company_id AND task_id = @task_id
+RETURNING *;
+
 -- name: ListTaskWorktrees :many
 -- Worktrees de um workspace (mais recentes primeiro), com a chave e o estado da task.
 SELECT w.*, t.number AS task_number, c.task_prefix, t.title AS task_title, t.status AS task_status, t.project_id

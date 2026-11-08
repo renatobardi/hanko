@@ -33,6 +33,7 @@ type gitBackend interface {
 	TaskGitTree(ctx context.Context, companyID, taskID domain.ID, path string) (service.TaskGitTree, error)
 	TaskGitFile(ctx context.Context, companyID, taskID domain.ID, path string) (gitrepo.File, error)
 	RemoveTaskWorktree(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID) error
+	PushTaskWorktree(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID) (service.PushResult, error)
 	RequestTaskNewSession(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, reason string) (domain.TaskSessionReset, error)
 	GetProjectDefaults(ctx context.Context, companyID, projectID domain.ID) (domain.ProjectDefaults, error)
 	SetProjectDefaults(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, in service.SetProjectDefaultsInput) (domain.ProjectDefaults, error)
@@ -50,6 +51,8 @@ func init() {
 		"git-desligado": i18n.N("Git desligado neste workspace."),
 		"git-cred":      i18n.N("Credencial salva."),
 		"git-limpo":     i18n.N("Worktree limpo; a branch segue no espelho."),
+		"git-enviado":   i18n.N("Branch enviada ao repositório remoto."),
+		"git-em-dia":    i18n.N("O remoto já tinha o último commit da branch; nada foi enviado."),
 		"nova-sessao":   i18n.N("Pedido registrado: o próximo run começa uma sessão nova."),
 		"padroes":       i18n.N("Padrões do projeto salvos."),
 		"politica-proj": i18n.N("Política de revisão do projeto salva."),
@@ -451,9 +454,18 @@ func (s *server) handleTaskGit(w http.ResponseWriter, r *http.Request, co domain
 	}
 	vm := views.TaskGitVM{Key: t.Key, Title: t.Title, TaskHref: taskBase, Tab: tab, Live: v.Live, Ahead: v.Ahead, Behind: v.Behind, Merged: v.Merged,
 		Notice: i18n.T(ctx, notices[r.URL.Query().Get("ok")]), MirrorOK: v.MirrorState == domain.MirrorReady || v.MirrorState == domain.MirrorSyncing || v.MirrorError == "",
-		MirrorEr: v.MirrorError, CleanAction: taskBase + "/git/limpar"}
+		MirrorEr: v.MirrorError, CleanAction: taskBase + "/git/limpar", PushAction: taskBase + "/git/enviar"}
 	if wt := v.Worktree; wt != nil {
 		vm.Branch, vm.Base, vm.Head, vm.State, vm.WtError = wt.Branch, dashText(wt.BaseBranch), shortSHA(v.HeadSHA), worktreeBadge(ctx, wt.State), wt.Error
+		vm.CanPush = wt.State == domain.WorktreeReady || wt.State == domain.WorktreeDiverged || wt.State == domain.WorktreeRemoved
+		switch {
+		case wt.PushedSHA == "":
+			vm.Pushed = i18n.T(ctx, "nunca")
+		case wt.PushedSHA == v.HeadSHA:
+			vm.Pushed = i18n.T(ctx, "em dia") + " (" + shortSHA(wt.PushedSHA) + ")"
+		default:
+			vm.Pushed = i18n.T(ctx, "atrasado") + " (" + shortSHA(wt.PushedSHA) + ")"
+		}
 	}
 	for _, tt := range taskGitTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: tt.key, Label: i18n.T(ctx, tt.label), Href: taskBase + "/git?aba=" + tt.key, On: tt.key == tab})
@@ -558,4 +570,27 @@ func (s *server) handleTaskGitClean(w http.ResponseWriter, r *http.Request, co d
 		return
 	}
 	redirect(w, r, "/c/"+co.Slug+"/tasks/"+t.Key+"/git?ok=git-limpo")
+}
+
+// handleTaskGitPush envia a branch do worktree ao remoto (membro; ADR-0091).
+func (s *server) handleTaskGitPush(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	gb, ok := s.gitBE()
+	if !ok {
+		s.fail(w, r, &co, domain.ErrNotFound)
+		return
+	}
+	t, ok := s.taskOf(w, r, co)
+	if !ok {
+		return
+	}
+	p, err := gb.PushTaskWorktree(r.Context(), actorFrom(r.Context()), co.ID, t.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	ok2 := "git-enviado"
+	if p.UpToDate {
+		ok2 = "git-em-dia"
+	}
+	redirect(w, r, "/c/"+co.Slug+"/tasks/"+t.Key+"/git?ok="+ok2)
 }

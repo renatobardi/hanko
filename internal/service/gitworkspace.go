@@ -148,9 +148,12 @@ func workspaceGitFromRow(r store.WorkspaceGit) domain.WorkspaceGit {
 func worktreeFromRow(r store.TaskWorktree) domain.TaskWorktree {
 	w := domain.TaskWorktree{ID: r.ID, CompanyID: r.CompanyID, TaskID: r.TaskID, WorkspaceID: r.WorkspaceID, Branch: r.Branch,
 		BaseBranch: r.BaseBranch, Path: r.Path, State: domain.WorktreeState(r.State), Error: r.Error,
-		RemovedWhy: domain.RemoveReason(r.RemovedReason), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RemovedAt: r.RemovedAt}
+		RemovedWhy: domain.RemoveReason(r.RemovedReason), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RemovedAt: r.RemovedAt, PushedAt: r.PushedAt}
 	if r.BaseSha != nil {
 		w.BaseSHA = *r.BaseSha
+	}
+	if r.PushedSha != nil {
+		w.PushedSHA = *r.PushedSha
 	}
 	if r.HeadSha != nil {
 		w.HeadSHA = *r.HeadSha

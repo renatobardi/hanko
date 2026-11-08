@@ -42,6 +42,8 @@ type Worktree struct {
 	State         string     `json:"state" enum:"provisioning,ready,failed,diverged,removed"`
 	Error         string     `json:"error,omitempty"`
 	RemovedReason string     `json:"removed_reason,omitempty" enum:"done,cancelled,merged,manual,workspace_deleted"`
+	PushedSHA     string     `json:"pushed_sha,omitempty" doc:"Último commit da branch enviado ao remoto (ADR-0091); ausente se nunca enviada."`
+	PushedAt      *time.Time `json:"pushed_at,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 	RemovedAt     *time.Time `json:"removed_at,omitempty"`
@@ -126,7 +128,16 @@ type TaskSessionReset struct {
 func worktreeOut(w service.WorktreeView) Worktree {
 	return Worktree{TaskID: idStr(w.TaskID), TaskKey: w.TaskKey, TaskTitle: w.TaskTitle, TaskStatus: w.TaskStatus, ProjectID: idPtr(w.ProjectID),
 		Branch: w.Branch, BaseBranch: w.BaseBranch, BaseSHA: w.BaseSHA, HeadSHA: w.HeadSHA, State: string(w.State), Error: w.Error,
-		RemovedReason: string(w.RemovedWhy), CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt, RemovedAt: w.RemovedAt}
+		RemovedReason: string(w.RemovedWhy), PushedSHA: w.PushedSHA, PushedAt: w.PushedAt, CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt, RemovedAt: w.RemovedAt}
+}
+
+// GitPush é o resultado do envio da branch da task ao remoto (ADR-0091).
+type GitPush struct {
+	Branch    string `json:"branch"`
+	SHA       string `json:"sha" doc:"Commit da branch que está no remoto."`
+	Commits   int    `json:"commits" doc:"Commits da branch desde a base."`
+	UpToDate  bool   `json:"up_to_date" doc:"O remoto já tinha esse commit; nada foi enviado."`
+	Committed bool   `json:"committed" doc:"Alterações soltas no worktree viraram um commit antes do envio."`
 }
 
 func worktreesOut(ws []service.WorktreeView) []Worktree {
@@ -438,6 +449,27 @@ func (s *server) registerTaskGit(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			return nil, nil
+		})
+
+	huma.Register(api, op("push-task-worktree", http.MethodPost, "/companies/{company}/tasks/{task}/git/push", "tasks",
+		"Envia a branch do worktree da task ao repositório remoto com a credencial do workspace (membro; ADR-0091). Alterações soltas viram um commit antes."),
+		func(ctx context.Context, in *TaskPath) (*ItemOut[GitPush], error) {
+			if err := forbidPersona(ctx); err != nil {
+				return nil, err
+			}
+			sc, err := s.scope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			tv, err := s.svc.GetTask(ctx, sc.Company.ID, in.Task)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			p, err := s.svc.PushTaskWorktree(ctx, sc.Actor, sc.Company.ID, tv.ID)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[GitPush]{Body: GitPush{Branch: p.Branch, SHA: p.SHA, Commits: p.Commits, UpToDate: p.UpToDate, Committed: p.Committed}}, nil
 		})
 
 	huma.Register(api, created(op("task-new-session", http.MethodPost, "/companies/{company}/tasks/{task}/new-session", "tasks",

@@ -24,7 +24,7 @@ func TestBuildPromptProjectInstructionsWorktreeAndSessionReset(t *testing.T) {
 	if iPersona < 0 || iPersona >= iProject || iProject >= iProtocol {
 		t.Fatalf("ordem do system prompt (persona %d, projeto %d, protocolo %d):\n%s", iPersona, iProject, iProtocol, system)
 	}
-	if !strings.Contains(system, "Use o guia de estilo.") || !strings.Contains(system, "branch `hnk-7`") || !strings.Contains(system, "não faça push") {
+	if !strings.Contains(system, "Use o guia de estilo.") || !strings.Contains(system, "branch `hnk-7`") || !strings.Contains(system, "não faça push você mesma") || !strings.Contains(system, "`hanko_git_push`") {
 		t.Fatalf("system:\n%s", system)
 	}
 	if !strings.Contains(prompt, "Sessão nova:") || !strings.Contains(prompt, "Motivo: contexto confuso.") {

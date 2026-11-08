@@ -61,7 +61,7 @@ SET workspace_id = EXCLUDED.workspace_id, branch = EXCLUDED.branch, base_branch 
     updated_at = EXCLUDED.updated_at
 WHERE task_worktrees.state IN ('failed', 'diverged', 'removed')
    OR (task_worktrees.state = 'provisioning' AND task_worktrees.claimed_at < $9)
-RETURNING id, company_id, task_id, workspace_id, branch, base_branch, base_sha, head_sha, path, state, error, removed_reason, claimed_at, removed_at, created_at, updated_at
+RETURNING id, company_id, task_id, workspace_id, branch, base_branch, base_sha, head_sha, path, state, error, removed_reason, claimed_at, removed_at, created_at, updated_at, pushed_sha, pushed_at
 `
 
 type ClaimTaskWorktreeParams struct {
@@ -109,6 +109,8 @@ func (q *Queries) ClaimTaskWorktree(ctx context.Context, arg ClaimTaskWorktreePa
 		&i.RemovedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PushedSha,
+		&i.PushedAt,
 	)
 	return i, err
 }
@@ -275,7 +277,7 @@ SET state = $1, base_sha = COALESCE($2, base_sha), head_sha = COALESCE($3, head_
     path = $4, base_branch = $5, error = $6, removed_reason = $7,
     removed_at = $8, updated_at = $9
 WHERE company_id = $10 AND id = $11
-RETURNING id, company_id, task_id, workspace_id, branch, base_branch, base_sha, head_sha, path, state, error, removed_reason, claimed_at, removed_at, created_at, updated_at
+RETURNING id, company_id, task_id, workspace_id, branch, base_branch, base_sha, head_sha, path, state, error, removed_reason, claimed_at, removed_at, created_at, updated_at, pushed_sha, pushed_at
 `
 
 type FinishTaskWorktreeParams struct {
@@ -324,6 +326,8 @@ func (q *Queries) FinishTaskWorktree(ctx context.Context, arg FinishTaskWorktree
 		&i.RemovedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PushedSha,
+		&i.PushedAt,
 	)
 	return i, err
 }
@@ -395,7 +399,7 @@ func (q *Queries) GetSkillSourceByURL(ctx context.Context, arg GetSkillSourceByU
 
 const getTaskWorktree = `-- name: GetTaskWorktree :one
 
-SELECT id, company_id, task_id, workspace_id, branch, base_branch, base_sha, head_sha, path, state, error, removed_reason, claimed_at, removed_at, created_at, updated_at FROM task_worktrees WHERE company_id = $1 AND task_id = $2
+SELECT id, company_id, task_id, workspace_id, branch, base_branch, base_sha, head_sha, path, state, error, removed_reason, claimed_at, removed_at, created_at, updated_at, pushed_sha, pushed_at FROM task_worktrees WHERE company_id = $1 AND task_id = $2
 `
 
 type GetTaskWorktreeParams struct {
@@ -424,6 +428,8 @@ func (q *Queries) GetTaskWorktree(ctx context.Context, arg GetTaskWorktreeParams
 		&i.RemovedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PushedSha,
+		&i.PushedAt,
 	)
 	return i, err
 }
@@ -483,7 +489,7 @@ func (q *Queries) LatestTaskSessionReset(ctx context.Context, arg LatestTaskSess
 }
 
 const listLiveWorktrees = `-- name: ListLiveWorktrees :many
-SELECT w.id, w.company_id, w.task_id, w.workspace_id, w.branch, w.base_branch, w.base_sha, w.head_sha, w.path, w.state, w.error, w.removed_reason, w.claimed_at, w.removed_at, w.created_at, w.updated_at, t.number AS task_number, c.task_prefix, t.status AS task_status, c.slug AS company_slug,
+SELECT w.id, w.company_id, w.task_id, w.workspace_id, w.branch, w.base_branch, w.base_sha, w.head_sha, w.path, w.state, w.error, w.removed_reason, w.claimed_at, w.removed_at, w.created_at, w.updated_at, w.pushed_sha, w.pushed_at, t.number AS task_number, c.task_prefix, t.status AS task_status, c.slug AS company_slug,
        ws.slug AS workspace_slug, COALESCE(g.base_branch, '')::text AS mirror_base, g.last_fetch_at AS mirror_fetched_at
 FROM task_worktrees w
 JOIN tasks t ON t.id = w.task_id
@@ -520,6 +526,8 @@ type ListLiveWorktreesRow struct {
 	RemovedAt       *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	PushedSha       *string
+	PushedAt        *time.Time
 	TaskNumber      int64
 	TaskPrefix      string
 	TaskStatus      string
@@ -556,6 +564,8 @@ func (q *Queries) ListLiveWorktrees(ctx context.Context, arg ListLiveWorktreesPa
 			&i.RemovedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PushedSha,
+			&i.PushedAt,
 			&i.TaskNumber,
 			&i.TaskPrefix,
 			&i.TaskStatus,
@@ -575,7 +585,7 @@ func (q *Queries) ListLiveWorktrees(ctx context.Context, arg ListLiveWorktreesPa
 }
 
 const listProjectTaskWorktrees = `-- name: ListProjectTaskWorktrees :many
-SELECT w.id, w.company_id, w.task_id, w.workspace_id, w.branch, w.base_branch, w.base_sha, w.head_sha, w.path, w.state, w.error, w.removed_reason, w.claimed_at, w.removed_at, w.created_at, w.updated_at, t.number AS task_number, c.task_prefix, t.title AS task_title, t.status AS task_status, t.project_id
+SELECT w.id, w.company_id, w.task_id, w.workspace_id, w.branch, w.base_branch, w.base_sha, w.head_sha, w.path, w.state, w.error, w.removed_reason, w.claimed_at, w.removed_at, w.created_at, w.updated_at, w.pushed_sha, w.pushed_at, t.number AS task_number, c.task_prefix, t.title AS task_title, t.status AS task_status, t.project_id
 FROM task_worktrees w
 JOIN tasks t ON t.id = w.task_id
 JOIN companies c ON c.id = w.company_id
@@ -607,6 +617,8 @@ type ListProjectTaskWorktreesRow struct {
 	RemovedAt     *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	PushedSha     *string
+	PushedAt      *time.Time
 	TaskNumber    int64
 	TaskPrefix    string
 	TaskTitle     string
@@ -640,6 +652,8 @@ func (q *Queries) ListProjectTaskWorktrees(ctx context.Context, arg ListProjectT
 			&i.RemovedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PushedSha,
+			&i.PushedAt,
 			&i.TaskNumber,
 			&i.TaskPrefix,
 			&i.TaskTitle,
@@ -695,7 +709,7 @@ func (q *Queries) ListProjectsImportingSkills(ctx context.Context, arg ListProje
 }
 
 const listTaskWorktrees = `-- name: ListTaskWorktrees :many
-SELECT w.id, w.company_id, w.task_id, w.workspace_id, w.branch, w.base_branch, w.base_sha, w.head_sha, w.path, w.state, w.error, w.removed_reason, w.claimed_at, w.removed_at, w.created_at, w.updated_at, t.number AS task_number, c.task_prefix, t.title AS task_title, t.status AS task_status, t.project_id
+SELECT w.id, w.company_id, w.task_id, w.workspace_id, w.branch, w.base_branch, w.base_sha, w.head_sha, w.path, w.state, w.error, w.removed_reason, w.claimed_at, w.removed_at, w.created_at, w.updated_at, w.pushed_sha, w.pushed_at, t.number AS task_number, c.task_prefix, t.title AS task_title, t.status AS task_status, t.project_id
 FROM task_worktrees w
 JOIN tasks t ON t.id = w.task_id
 JOIN companies c ON c.id = w.company_id
@@ -727,6 +741,8 @@ type ListTaskWorktreesRow struct {
 	RemovedAt     *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	PushedSha     *string
+	PushedAt      *time.Time
 	TaskNumber    int64
 	TaskPrefix    string
 	TaskTitle     string
@@ -761,6 +777,8 @@ func (q *Queries) ListTaskWorktrees(ctx context.Context, arg ListTaskWorktreesPa
 			&i.RemovedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PushedSha,
+			&i.PushedAt,
 			&i.TaskNumber,
 			&i.TaskPrefix,
 			&i.TaskTitle,
@@ -814,7 +832,7 @@ func (q *Queries) ListWorkspaceGit(ctx context.Context, companyID uuid.UUID) ([]
 }
 
 const listWorkspaceWorktreesLive = `-- name: ListWorkspaceWorktreesLive :many
-SELECT id, company_id, task_id, workspace_id, branch, base_branch, base_sha, head_sha, path, state, error, removed_reason, claimed_at, removed_at, created_at, updated_at FROM task_worktrees WHERE company_id = $1 AND workspace_id = $2 AND state <> 'removed'
+SELECT id, company_id, task_id, workspace_id, branch, base_branch, base_sha, head_sha, path, state, error, removed_reason, claimed_at, removed_at, created_at, updated_at, pushed_sha, pushed_at FROM task_worktrees WHERE company_id = $1 AND workspace_id = $2 AND state <> 'removed'
 `
 
 type ListWorkspaceWorktreesLiveParams struct {
@@ -848,6 +866,8 @@ func (q *Queries) ListWorkspaceWorktreesLive(ctx context.Context, arg ListWorksp
 			&i.RemovedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PushedSha,
+			&i.PushedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -881,6 +901,51 @@ func (q *Queries) ResetOfRun(ctx context.Context, arg ResetOfRunParams) (TaskSes
 		&i.ConsumedRunID,
 		&i.ConsumedAt,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const setTaskWorktreePushed = `-- name: SetTaskWorktreePushed :one
+UPDATE task_worktrees SET pushed_sha = $1, pushed_at = $2, updated_at = $2
+WHERE company_id = $3 AND task_id = $4
+RETURNING id, company_id, task_id, workspace_id, branch, base_branch, base_sha, head_sha, path, state, error, removed_reason, claimed_at, removed_at, created_at, updated_at, pushed_sha, pushed_at
+`
+
+type SetTaskWorktreePushedParams struct {
+	PushedSha *string
+	Now       *time.Time
+	CompanyID uuid.UUID
+	TaskID    uuid.UUID
+}
+
+// Registra o último commit da branch enviado ao remoto (ADR-0091).
+func (q *Queries) SetTaskWorktreePushed(ctx context.Context, arg SetTaskWorktreePushedParams) (TaskWorktree, error) {
+	row := q.db.QueryRow(ctx, setTaskWorktreePushed,
+		arg.PushedSha,
+		arg.Now,
+		arg.CompanyID,
+		arg.TaskID,
+	)
+	var i TaskWorktree
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.TaskID,
+		&i.WorkspaceID,
+		&i.Branch,
+		&i.BaseBranch,
+		&i.BaseSha,
+		&i.HeadSha,
+		&i.Path,
+		&i.State,
+		&i.Error,
+		&i.RemovedReason,
+		&i.ClaimedAt,
+		&i.RemovedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PushedSha,
+		&i.PushedAt,
 	)
 	return i, err
 }
