@@ -1,12 +1,13 @@
 # Correções do diagnóstico da produção · sessão `bold-ptolemy`
-Data: 2026-11-07
+Data: 2026-11-08
 
 ## Feito
-- #183, #193 e #206 mesclados e em produção (`62211e1a`).
-- Item 4: readiness ganha o passo `secrets` (toda `${secret:}` resolve; `${secretfile:}` existe, está ao alcance da persona e cabe em arquivo) e o passo `model` recusa nome de família de preço (`claude-haiku`); o catálogo deixa de oferecer as famílias. Enum da API regenerado, rótulos na UI e no catálogo i18n, linhas no RUNBOOK, fragmento em `changelog.d/`, testes em `readiness`, `domain`, `service` e `api`.
+- #183, #193, #206 e #213 (item 4: readiness confere segredos e recusa família de modelo) mesclados; #213 aguarda deploy.
+- Item 5 (ADR-0090): conversa (chat e sala) com projeto opcional; as runs usam o workspace e o ambiente do projeto na precedência das tasks (projeto > persona > temporário). Migration 00218, `project`/`project_id` na API, `--project` na CLI, seletor na UI, RUNBOOK, changelog, testes em `service` e `api`.
 
 ## Travado
 - Nada.
 
 ## Próximo passo
-- (5) chat usar o workspace do projeto quando a persona não tem (`internal/service/conversations.go:562`; precedência task > projeto > persona de `internal/service/runworkspace.go`); (6) decidir se o Hanko passa a fazer push da branch do worktree (revisar ADR-0054 → ADR novo) ou documentar o caminho via GitHub MCP (`create_branch`/`push_files`/`create_pull_request`).
+- (6) decidir se o Hanko passa a fazer push da branch do worktree (revisar ADR-0054 → ADR novo) ou documentar o caminho via GitHub MCP (`create_branch`/`push_files`/`create_pull_request`); apresentar recomendação ao Bardi antes de codar.
+- Deploy do #213 e deste PR em `hanko-prd`; depois, abrir os chats da `oute` com o projeto `kubo` para a persona ver o repositório.
