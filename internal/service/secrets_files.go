@@ -29,6 +29,63 @@ func (s *Service) configResolverFor(ctx context.Context, companyID, personaID do
 	}
 }
 
+// ResolveProbeAdapterConfig é a resolução do adapter_config para o teste de readiness: ${secret:} vira o valor (como
+// no despacho, sem registrar uso) e ${secretfile:} é só conferido (o item existe, a persona o alcança, o campo cabe
+// num arquivo) e fica no lugar, porque o arquivo só nasce na run. Devolve também as referências encontradas (nomes,
+// nunca valores). O erro nomeia a referência que falhou.
+func (s *Service) ResolveProbeAdapterConfig(ctx context.Context, companyID, personaID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, error) {
+	var refs []string
+	for _, r := range secretref.Find(string(cfg)) {
+		refs = append(refs, r.String())
+	}
+	if len(refs) == 0 {
+		return cfg, nil, nil
+	}
+	var doc any
+	if err := json.Unmarshal(cfg, &doc); err != nil {
+		return cfg, refs, fmt.Errorf("adapter_config: %w", err)
+	}
+	base := s.runResolverFor(ctx, companyID, personaID, nil)
+	out, _, err := secretref.ExpandJSON(doc, func(r secretref.Ref) (string, error) {
+		if !r.File {
+			return base(r)
+		}
+		return r.String(), s.checkFileRef(ctx, companyID, personaID, r)
+	})
+	if err != nil {
+		return cfg, refs, err
+	}
+	raw, err := json.Marshal(out) //nolint:gosec // configuração com os segredos resolvidos: vai só para o probe, em memória
+	if err != nil {
+		return cfg, refs, fmt.Errorf("adapter_config: %w", err)
+	}
+	return raw, refs, nil
+}
+
+// checkFileRef confere uma referência ${secretfile:} sem ler o valor: a persona alcança o item, ele existe e o campo
+// pode virar arquivo.
+func (s *Service) checkFileRef(ctx context.Context, companyID, personaID domain.ID, r secretref.Ref) error {
+	if err := s.requirePersonaUse(ctx, companyID, personaID, r); err != nil {
+		return err
+	}
+	q := s.read()
+	sec, err := q.GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: r.Name})
+	if err != nil {
+		if isNoRows(err) {
+			return errors.New("não existe")
+		}
+		return fmt.Errorf("ler segredo: %w", err)
+	}
+	f, err := q.GetSecretField(ctx, store.GetSecretFieldParams{CompanyID: companyID, SecretID: sec.ID, Name: r.FieldName()})
+	if err != nil {
+		if isNoRows(err) {
+			return fmt.Errorf("o campo %q não existe", r.FieldName())
+		}
+		return fmt.Errorf("ler campo: %w", err)
+	}
+	return refKindErr(r, domain.SecretFieldKind(f.Kind))
+}
+
 // runResolverFor lê ${secret:} para a persona e, com a run, registra o uso do item da empresa (via dispatch). O erro
 // nomeia a referência, nunca o valor. Sem run (runID nil), só lê.
 func (s *Service) runResolverFor(ctx context.Context, companyID, personaID domain.ID, runID *domain.ID) func(secretref.Ref) (string, error) {

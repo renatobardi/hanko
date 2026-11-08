@@ -30,7 +30,7 @@ func (s *server) readiness() (readinessBackend, error) {
 
 // ReadinessStep é um passo do teste de readiness.
 type ReadinessStep struct {
-	Name   string `json:"name" enum:"environment,binary,auth,model" doc:"environment: o ambiente responde; binary: o binário do harness existe; auth: há login ou chave de API; model: o modelo é válido e tem preço."`
+	Name   string `json:"name" enum:"secrets,environment,binary,auth,model" doc:"secrets: as referências ${secret:}/${secretfile:} do adapter_config existem e a persona as alcança; environment: o ambiente responde; binary: o binário do harness existe; auth: há login ou chave de API; model: o modelo é válido e tem preço."`
 	Status string `json:"status" enum:"ok,warn,fail,skip" doc:"fail bloqueia o despacho; warn e skip não."`
 	Detail string `json:"detail,omitempty"`
 }
