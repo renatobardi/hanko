@@ -100,12 +100,20 @@ func envSourceLabel(s domain.EnvSource) string {
 // recordRunEnvironment decide e grava o ambiente de uma run recém-criada, na mesma transação que a criou.
 func (t *txc) recordRunEnvironment(run store.Run) (store.Run, error) {
 	var projectID *uuid.UUID
-	if run.TaskID != nil {
+	switch {
+	case run.TaskID != nil:
 		task, err := t.q.GetTaskByID(t.ctx, store.GetTaskByIDParams{CompanyID: run.CompanyID, ID: *run.TaskID})
 		if err != nil {
 			return run, mapErr(err, "get task")
 		}
 		projectID = task.ProjectID
+	case run.ConversationID != nil:
+		// run de chat ou sala: o projeto da conversa, quando ela tem um (ADR-0090)
+		conv, err := t.q.GetConversation(t.ctx, store.GetConversationParams{CompanyID: run.CompanyID, ID: *run.ConversationID})
+		if err != nil {
+			return run, mapErr(err, "get conversation")
+		}
+		projectID = conv.ProjectID
 	}
 	res, err := resolveEnvChoice(t.ctx, t.q, run.CompanyID, run.PersonaID, projectID)
 	if err != nil {

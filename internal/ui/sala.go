@@ -83,8 +83,8 @@ func roomModeLabel(ctx context.Context, m domain.RoomMode) string {
 
 // roomForm é o que o formulário de nova sala devolve num erro.
 type roomForm struct {
-	title, message, moderator, mode string
-	personas                        map[string]bool
+	title, message, moderator, mode, project string
+	personas                                 map[string]bool
 }
 
 func (s *server) handleRooms(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -123,6 +123,8 @@ func (s *server) renderRooms(w http.ResponseWriter, r *http.Request, co domain.C
 	for _, t := range chatTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), On: t.key == cur.key, Href: base + "/sala?s=" + t.key})
 	}
+	selProject, _ := optionalProjectID(f.project)
+	vm.Projects = s.projectOptions(r, co, selProject)
 	vm.Moderators = append(vm.Moderators, views.Option{Value: "", Label: i18n.T(ctx, "A primeira escolhida")})
 	for _, p := range personas {
 		pk := views.RoomPick{ID: p.ID.String(), Name: p.Name, Title: p.Title, Checked: f.personas[p.ID.String()]}
@@ -147,8 +149,15 @@ func (s *server) handleCreateRoom(w http.ResponseWriter, r *http.Request, co dom
 		return
 	}
 	f := roomForm{title: trimForm(r, "title"), message: trimForm(r, "message"), moderator: trimForm(r, "moderator"),
-		mode: trimForm(r, "mode"), personas: map[string]bool{}}
+		mode: trimForm(r, "mode"), project: trimForm(r, "project"), personas: map[string]bool{}}
 	in := service.CreateRoomInput{Title: f.title, Message: f.message, Mode: domain.RoomMode(f.mode)}
+	projectID, perr := optionalProjectID(f.project)
+	if perr != nil {
+		f.project = ""
+		s.renderRooms(w, r, co, http.StatusUnprocessableEntity, i18n.T(ctx, "Escolha um projeto da lista."), f)
+		return
+	}
+	in.ProjectID = projectID
 	for _, raw := range r.PostForm["personas"] {
 		id, err := domain.ParseID(strings.TrimSpace(raw))
 		if err != nil {

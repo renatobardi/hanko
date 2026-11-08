@@ -3476,6 +3476,11 @@
           "persona_slug": {
             "type": "string"
           },
+          "project_id": {
+            "description": "Projeto da conversa (ADR-0090); as execuções herdam o workspace e o ambiente dele quando a persona não tem os seus.",
+            "format": "uuid",
+            "type": "string"
+          },
           "room": {
             "$ref": "#/components/schemas/Room",
             "description": "Configuração e participantes de uma sala."
@@ -4192,6 +4197,13 @@
               "array",
               "null"
             ]
+          },
+          "project": {
+            "description": "Id ou slug do projeto da conversa (opcional): as execuções herdam o workspace e o ambiente dele quando a persona não tem os seus (ADR-0090).",
+            "examples": [
+              "kubo"
+            ],
+            "type": "string"
           },
           "title": {
             "description": "Derivado da primeira mensagem quando omitido.",

@@ -498,6 +498,7 @@ type Conversation struct {
 	LastMessageAt time.Time
 	Kind          string
 	RoomSettings  []byte
+	ProjectID     *uuid.UUID
 }
 
 type ConversationClassInput struct {

@@ -21,9 +21,12 @@ func (s ConversationStatus) Valid() bool { return s == ConversationOpen || s == 
 
 // Conversation é uma conversa de um humano com uma persona.
 type Conversation struct {
-	ID            ID                 `json:"id"`
-	CompanyID     ID                 `json:"company_id"`
-	PersonaID     ID                 `json:"persona_id"` // zero numa sala (ADR-0033): as personas são os participantes
+	ID        ID `json:"id"`
+	CompanyID ID `json:"company_id"`
+	PersonaID ID `json:"persona_id"` // zero numa sala (ADR-0033): as personas são os participantes
+	// ProjectID é o projeto da conversa (ADR-0090), opcional: as runs dela herdam o workspace e o ambiente dele quando
+	// a persona não tem os seus.
+	ProjectID     *ID                `json:"project_id,omitempty"`
 	Kind          ConversationKind   `json:"kind"`
 	Title         string             `json:"title"`
 	Status        ConversationStatus `json:"status"`

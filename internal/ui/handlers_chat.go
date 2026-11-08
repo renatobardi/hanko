@@ -63,11 +63,28 @@ func chatRows(ctx context.Context, list []service.ConversationView, base string,
 }
 
 func (s *server) handleChats(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	s.renderChats(w, r, co, http.StatusOK, "", "", r.URL.Query().Get("persona"))
+	s.renderChats(w, r, co, http.StatusOK, chatForm{persona: r.URL.Query().Get("persona"), project: r.URL.Query().Get("project")})
 }
 
-// renderChats draws the list with the new-conversation form; errMsg/message/selected carry a failed submission.
-func (s *server) renderChats(w http.ResponseWriter, r *http.Request, co domain.Company, status int, errMsg, message, selected string) {
+// chatForm é o estado do formulário de nova conversa (o que o usuário mandou e, numa falha, o motivo).
+type chatForm struct {
+	errMsg, message, persona, project string
+}
+
+// optionalProjectID lê o projeto escolhido num formulário ("" = nenhum).
+func optionalProjectID(raw string) (*domain.ID, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	id, err := domain.ParseID(raw)
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
+// renderChats draws the list with the new-conversation form; f carries a failed submission.
+func (s *server) renderChats(w http.ResponseWriter, r *http.Request, co domain.Company, status int, f chatForm) {
 	ctx := r.Context()
 	base := "/c/" + co.Slug
 	loc := loadLoc(co.Timezone)
@@ -91,9 +108,10 @@ func (s *server) renderChats(w http.ResponseWriter, r *http.Request, co domain.C
 		s.fail(w, r, &co, err)
 		return
 	}
+	selProject, _ := optionalProjectID(f.project)
 	vm := views.ChatsVM{
-		Rows: chatRows(ctx, list, base, now, loc), NewAction: base + "/chat/nova",
-		Message: message, Error: errMsg, Empty: len(personas) == 0,
+		Rows: chatRows(ctx, list, base, now, loc), NewAction: base + "/chat/nova", Projects: s.projectOptions(r, co, selProject),
+		Message: f.message, Error: f.errMsg, Empty: len(personas) == 0,
 		Subtitle: i18n.T(ctx, "Conversa direta com uma persona, fora de uma task."),
 	}
 	for _, t := range chatTabs {
@@ -102,7 +120,7 @@ func (s *server) renderChats(w http.ResponseWriter, r *http.Request, co domain.C
 	}
 	for _, p := range personas {
 		vm.Personas = append(vm.Personas, views.Option{Value: p.ID.String(), Label: p.Name + " · " + p.Title,
-			Selected: p.ID.String() == selected || p.Slug == selected})
+			Selected: p.ID.String() == f.persona || p.Slug == f.persona})
 	}
 	sh := s.shell(r, co, "chat", i18n.T(ctx, "Chat"), views.Crumb{Label: i18n.T(ctx, "Chat")})
 	s.render(w, r, status, views.ChatsPage(sh, vm))
@@ -110,21 +128,29 @@ func (s *server) renderChats(w http.ResponseWriter, r *http.Request, co domain.C
 
 func (s *server) handleCreateChat(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	message := strings.TrimSpace(r.PostFormValue("message"))
-	selected := trimForm(r, "persona")
-	pid, err := domain.ParseID(selected)
+	f := chatForm{message: strings.TrimSpace(r.PostFormValue("message")), persona: trimForm(r, "persona"), project: trimForm(r, "project")}
+	pid, err := domain.ParseID(f.persona)
 	if err != nil {
-		s.renderChats(w, r, co, http.StatusUnprocessableEntity, i18n.T(ctx, "Escolha a persona."), message, "")
+		f.errMsg, f.persona = i18n.T(ctx, "Escolha a persona."), ""
+		s.renderChats(w, r, co, http.StatusUnprocessableEntity, f)
 		return
 	}
-	if message == "" {
-		s.renderChats(w, r, co, http.StatusUnprocessableEntity, i18n.T(ctx, "Escreva a primeira mensagem."), "", selected)
+	projectID, err := optionalProjectID(f.project)
+	if err != nil {
+		f.errMsg, f.project = i18n.T(ctx, "Escolha um projeto da lista."), ""
+		s.renderChats(w, r, co, http.StatusUnprocessableEntity, f)
 		return
 	}
-	cv, err := s.be.CreateConversation(ctx, actorFrom(ctx), co.ID, service.CreateConversationInput{PersonaID: pid, Message: message})
+	if f.message == "" {
+		f.errMsg = i18n.T(ctx, "Escreva a primeira mensagem.")
+		s.renderChats(w, r, co, http.StatusUnprocessableEntity, f)
+		return
+	}
+	cv, err := s.be.CreateConversation(ctx, actorFrom(ctx), co.ID, service.CreateConversationInput{PersonaID: pid, ProjectID: projectID, Message: f.message})
 	if err != nil {
 		if st, title, msg := friendly(ctx, err); st < 500 && st != http.StatusForbidden && st != http.StatusNotFound {
-			s.renderChats(w, r, co, st, title+": "+msg, message, selected)
+			f.errMsg = title + ": " + msg
+			s.renderChats(w, r, co, st, f)
 			return
 		}
 		s.fail(w, r, &co, err)
@@ -189,6 +215,11 @@ func (s *server) buildChatVM(r *http.Request, co domain.Company, cv service.Conv
 		Busy:       cv.ActiveRunID != nil,
 		ThreadHref: base + "/chat/" + cv.ID.String() + "/mensagens", SendHref: base + "/chat/" + cv.ID.String() + "/mensagens",
 		ListHref: base + "/chat", Cost: fmtUSDCtx(ctx, cv.CostUSD),
+	}
+	if cv.ProjectID != nil {
+		if pr, err := s.be.GetProjectView(ctx, co.ID, cv.ProjectID.String()); err == nil {
+			vm.Project, vm.ProjectHref = pr.Name, base+"/projetos/"+pr.Slug
+		}
 	}
 	if cv.Status == domain.ConversationArchived {
 		vm.StatusHref = base + "/chat/" + cv.ID.String() + "/reabrir"
