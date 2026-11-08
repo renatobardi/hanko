@@ -60,7 +60,29 @@ func TestPushTaskWorktree(t *testing.T) {
 		t.Fatalf("segundo envio: %+v %v", again, err)
 	}
 
-	// o remoto andou na mesma branch: o Hanko não força
+	// sem worktree é 404
+	other := e.task(t, service.CreateTaskInput{Title: "sem worktree"})
+	if _, err := e.svc.PushTaskWorktree(bg, domain.HumanActor, e.co.ID, other.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("sem worktree: %v", err)
+	}
+}
+
+// O Hanko nunca força: quando o remoto andou na mesma branch, o envio é recusado com o motivo.
+func TestPushTaskWorktreeRefusesDivergedRemote(t *testing.T) {
+	e := newGitEnv(t)
+	bg := context.Background()
+	e.enableAndSync(t)
+	tk := e.projectTask(t)
+	prep, err := e.svc.PrepareTaskWorktree(bg, e.co.ID, tk.ID, e.ws.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(prep.Dir, "busca.go"), "package loja\n")
+	gitCmd(t, prep.Dir, "add", "-A")
+	gitCmd(t, prep.Dir, "commit", "-q", "-m", "feat: busca")
+	if _, err := e.svc.PushTaskWorktree(bg, domain.HumanActor, e.co.ID, tk.ID); err != nil {
+		t.Fatal(err)
+	}
 	gitCmd(t, e.origin, "checkout", "-q", prep.Branch)
 	writeFile(t, filepath.Join(e.origin, "outro.txt"), "do outro lado\n")
 	gitCmd(t, e.origin, "add", "-A")
@@ -72,12 +94,6 @@ func TestPushTaskWorktree(t *testing.T) {
 	_, err = e.svc.PushTaskWorktree(bg, domain.HumanActor, e.co.ID, tk.ID)
 	if !errors.Is(err, domain.ErrInvalid) || !strings.Contains(err.Error(), "recusou") {
 		t.Fatalf("push sem força deveria ser recusado: %v", err)
-	}
-
-	// sem worktree é 404
-	other := e.task(t, service.CreateTaskInput{Title: "sem worktree"})
-	if _, err := e.svc.PushTaskWorktree(bg, domain.HumanActor, e.co.ID, other.ID); !errors.Is(err, domain.ErrNotFound) {
-		t.Fatalf("sem worktree: %v", err)
 	}
 }
 

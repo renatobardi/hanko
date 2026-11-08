@@ -13,11 +13,11 @@ import (
 // hanko_git_push (ADR-0091): a persona pede para enviar a branch do worktree da sua task ao repositório remoto. A
 // chamada passa pela política de tools (sem política, pergunta ao gate) e fica na auditoria.
 
-type gitPushBackend interface {
+type gitPusher interface {
 	GitPushForRun(ctx context.Context, companyID domain.ID, in service.GitPushInput) (service.GitPushResult, error)
 }
 
-var _ gitPushBackend = (*service.Service)(nil)
+var _ gitPusher = (*service.Service)(nil)
 
 type gitPushIn struct {
 	Company string `json:"company,omitempty" jsonschema:"ignorado: a task e a branch são as da sua execução"`
@@ -33,7 +33,7 @@ type gitPushOut struct {
 }
 
 func registerGitPushTools(s *sdk.Server, t *tools) {
-	if _, ok := t.b.(gitPushBackend); !ok {
+	if _, ok := t.b.(gitPusher); !ok {
 		return
 	}
 	sdk.AddTool(s, &sdk.Tool{
@@ -47,7 +47,7 @@ func registerGitPushTools(s *sdk.Server, t *tools) {
 }
 
 func (t *tools) gitPush(ctx context.Context, _ *sdk.CallToolRequest, in gitPushIn) (*sdk.CallToolResult, gitPushOut, error) {
-	gb, ok := t.b.(gitPushBackend)
+	gb, ok := t.b.(gitPusher)
 	if !ok {
 		return nil, gitPushOut{}, errors.New("git indisponível neste servidor")
 	}

@@ -121,13 +121,9 @@ func (s *Service) pushWorktree(ctx context.Context, actor domain.Actor, companyI
 			return PushResult{}, fmt.Errorf("commit de segurança: %w", err)
 		}
 	}
-	var cred *gitrepo.Credential
-	if a.wg.CredentialRef != "" {
-		val, _, rerr := s.ResolveSecretText(ctx, companyID, a.wg.CredentialRef)
-		if rerr != nil {
-			return PushResult{}, fmt.Errorf("credencial do repositório: %w", rerr)
-		}
-		cred = &gitrepo.Credential{Value: val}
+	cred, err := s.repoCredential(ctx, companyID, a.wg.CredentialRef)
+	if err != nil {
+		return PushResult{}, err
 	}
 	unlock := s.lockMirror(a.mirror)
 	p, err := g.PushBranch(ctx, a.mirror, ws.RepoUrl, a.row.Branch, cred)
@@ -136,11 +132,7 @@ func (s *Service) pushWorktree(ctx context.Context, actor domain.Actor, companyI
 		return PushResult{}, domain.Invalid("push", err.Error())
 	}
 	res.SHA, res.UpToDate = p.SHA, p.UpToDate
-	if a.row.BaseSha != nil {
-		if n, cerr := g.CountBetween(ctx, a.mirror, *a.row.BaseSha, p.SHA); cerr == nil {
-			res.Commits = n
-		}
-	}
+	res.Commits = s.commitsSinceBase(ctx, a, p.SHA)
 	err = s.withTx(ctx, func(t *txc) error {
 		if _, err := t.q.SetTaskWorktreePushed(ctx, store.SetTaskWorktreePushedParams{PushedSha: &p.SHA, Now: &t.now, CompanyID: companyID, TaskID: taskID}); err != nil {
 			return fmt.Errorf("registrar envio: %w", err)
@@ -152,4 +144,28 @@ func (s *Service) pushWorktree(ctx context.Context, actor domain.Actor, companyI
 		return PushResult{}, err
 	}
 	return res, nil
+}
+
+// repoCredential resolve a credencial do workspace para uma operação de rede; nil = repositório público.
+func (s *Service) repoCredential(ctx context.Context, companyID domain.ID, ref string) (*gitrepo.Credential, error) {
+	if ref == "" {
+		return nil, nil
+	}
+	val, _, err := s.ResolveSecretText(ctx, companyID, ref)
+	if err != nil {
+		return nil, fmt.Errorf("credencial do repositório: %w", err)
+	}
+	return &gitrepo.Credential{Value: val}, nil
+}
+
+// commitsSinceBase conta os commits da branch desde a base (0 quando não dá para contar).
+func (s *Service) commitsSinceBase(ctx context.Context, a worktreeAccess, sha string) int {
+	if a.row.BaseSha == nil {
+		return 0
+	}
+	n, err := s.gitRunner().CountBetween(ctx, a.mirror, *a.row.BaseSha, sha)
+	if err != nil {
+		return 0
+	}
+	return n
 }
