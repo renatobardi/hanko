@@ -122,9 +122,12 @@ type TaskWorktree struct {
 	State       WorktreeState `json:"state"`
 	Error       string        `json:"error,omitempty"`
 	RemovedWhy  RemoveReason  `json:"removed_reason,omitempty"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
-	RemovedAt   *time.Time    `json:"removed_at,omitempty"`
+	// PushedSHA e PushedAt: o último commit da branch enviado ao remoto e quando (ADR-0091); vazios se nunca enviada.
+	PushedSHA string     `json:"pushed_sha,omitempty"`
+	PushedAt  *time.Time `json:"pushed_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	RemovedAt *time.Time `json:"removed_at,omitempty"`
 }
 
 // MaxGitOutput é o teto de bytes de diff/arquivo que a UI e a API devolvem de uma vez.

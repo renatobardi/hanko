@@ -304,7 +304,32 @@ func (e *env) taskGitCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(status, diff, logCmd, ls, cat, clean)
+	push := &cobra.Command{
+		Use: "push " + e.t("<task>"), Short: e.t("Envia a branch do worktree da task ao repositório remoto (membro); alterações soltas viram um commit antes"), Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			p, err := e.client().PushTaskWorktree(cmd.Context(), co, args[0])
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(p)
+			}
+			if p.UpToDate {
+				fmt.Fprintf(e.out, e.t("Branch %s já estava no remoto em %s (%d commits desde a base)\n"), p.Branch, short(p.SHA), p.Commits)
+			} else {
+				fmt.Fprintf(e.out, e.t("Branch %s enviada: %s (%d commits desde a base)\n"), p.Branch, short(p.SHA), p.Commits)
+			}
+			if p.Committed {
+				fmt.Fprintln(e.out, e.t("(alterações soltas viraram um commit antes do envio)"))
+			}
+			return nil
+		},
+	}
+	c.AddCommand(status, diff, logCmd, ls, cat, clean, push)
 	return c
 }
 
