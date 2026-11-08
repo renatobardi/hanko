@@ -23,7 +23,22 @@ func pickWorkspace(taskWS *domain.ID, project *store.Project, persona store.Pers
 	return nil, domain.WorkspaceNone
 }
 
-// projectOf loads the project of a task (nil when the task has none).
+// requireProject confere que o projeto escolhido existe na empresa; nil quando não há projeto.
+func (t *txc) requireProject(companyID domain.ID, id *domain.ID) error {
+	if id == nil {
+		return nil
+	}
+	pr, err := t.projectOf(companyID, id)
+	if err != nil {
+		return err
+	}
+	if pr == nil {
+		return domain.Invalid("project", "projeto não encontrado")
+	}
+	return nil
+}
+
+// projectOf loads the project of a task or of a conversation (nil when there is none).
 func (t *txc) projectOf(companyID domain.ID, id *domain.ID) (*store.Project, error) {
 	if id == nil {
 		return nil, nil

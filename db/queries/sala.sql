@@ -1,9 +1,9 @@
 -- Sala (ADR-0033): conversa com várias personas — participantes, entregas de mensagens por persona e runs.
 
 -- name: CreateRoom :one
-INSERT INTO conversations (id, company_id, persona_id, kind, title, status, created_by_type, created_by_id, room_settings,
+INSERT INTO conversations (id, company_id, persona_id, project_id, kind, title, status, created_by_type, created_by_id, room_settings,
                            created_at, updated_at, last_message_at)
-VALUES (@id, @company_id, NULL, 'room', @title, 'open', @created_by_type, @created_by_id, @room_settings, @now, @now, @now)
+VALUES (@id, @company_id, NULL, @project_id, 'room', @title, 'open', @created_by_type, @created_by_id, @room_settings, @now, @now, @now)
 RETURNING *;
 
 -- name: SetRoomSettings :one

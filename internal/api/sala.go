@@ -106,8 +106,8 @@ func roomOut(r *service.RoomView) *Room {
 }
 
 // createRoom resolve as personas (id ou slug) e abre a sala.
-func (s *server) createRoom(ctx context.Context, actor domain.Actor, companyID domain.ID, title, message string, f RoomCreateFields) (service.ConversationView, error) {
-	in := service.CreateRoomInput{Title: title, Message: message, Mode: domain.RoomMode(f.Mode), MaxHops: f.MaxHops, MaxRunsPerMessage: f.MaxRunsPerMessage}
+func (s *server) createRoom(ctx context.Context, actor domain.Actor, companyID domain.ID, title, message string, project *domain.ID, f RoomCreateFields) (service.ConversationView, error) {
+	in := service.CreateRoomInput{Title: title, Message: message, ProjectID: project, Mode: domain.RoomMode(f.Mode), MaxHops: f.MaxHops, MaxRunsPerMessage: f.MaxRunsPerMessage}
 	for _, ref := range f.Personas {
 		p, err := s.svc.GetPersona(ctx, companyID, strings.TrimSpace(ref))
 		if err != nil {

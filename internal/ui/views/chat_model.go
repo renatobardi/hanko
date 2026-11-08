@@ -22,6 +22,7 @@ type ChatsVM struct {
 	// new conversation form
 	NewAction string
 	Personas  []Option
+	Projects  []Option // projeto da conversa (ADR-0090), opcional; a primeira opção é "sem projeto"
 	Message   string
 	Error     string
 	Empty     bool // the company has no persona to talk to
@@ -62,4 +63,7 @@ type ChatVM struct {
 	// DraftF liga o campo ao rascunho do servidor e UploadHint é a dica do campo de arquivos (ADR-0052).
 	DraftF     DraftFields
 	UploadHint string
+	// Project e ProjectHref são o projeto da conversa (ADR-0090); vazios quando ela não tem um.
+	Project     string
+	ProjectHref string
 }

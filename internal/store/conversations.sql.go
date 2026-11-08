@@ -94,15 +94,16 @@ func (q *Queries) ClaimPendingConversationMessages(ctx context.Context, arg Clai
 
 const createConversation = `-- name: CreateConversation :one
 
-INSERT INTO conversations (id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at)
-VALUES ($1, $2, $3, $4, 'open', $5, $6, $7, $7, $7)
-RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings
+INSERT INTO conversations (id, company_id, persona_id, project_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at)
+VALUES ($1, $2, $3, $4, $5, 'open', $6, $7, $8, $8, $8)
+RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings, project_id
 `
 
 type CreateConversationParams struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
 	PersonaID     *uuid.UUID
+	ProjectID     *uuid.UUID
 	Title         string
 	CreatedByType string
 	CreatedByID   *uuid.UUID
@@ -115,6 +116,7 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		arg.ID,
 		arg.CompanyID,
 		arg.PersonaID,
+		arg.ProjectID,
 		arg.Title,
 		arg.CreatedByType,
 		arg.CreatedByID,
@@ -134,6 +136,7 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		&i.LastMessageAt,
 		&i.Kind,
 		&i.RoomSettings,
+		&i.ProjectID,
 	)
 	return i, err
 }
@@ -153,7 +156,7 @@ func (q *Queries) DeleteConversation(ctx context.Context, arg DeleteConversation
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings FROM conversations WHERE company_id = $1 AND id = $2
+SELECT id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings, project_id FROM conversations WHERE company_id = $1 AND id = $2
 `
 
 type GetConversationParams struct {
@@ -177,12 +180,13 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 		&i.LastMessageAt,
 		&i.Kind,
 		&i.RoomSettings,
+		&i.ProjectID,
 	)
 	return i, err
 }
 
 const getConversationForUpdate = `-- name: GetConversationForUpdate :one
-SELECT id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings FROM conversations WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings, project_id FROM conversations WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetConversationForUpdateParams struct {
@@ -206,6 +210,7 @@ func (q *Queries) GetConversationForUpdate(ctx context.Context, arg GetConversat
 		&i.LastMessageAt,
 		&i.Kind,
 		&i.RoomSettings,
+		&i.ProjectID,
 	)
 	return i, err
 }
@@ -242,7 +247,7 @@ func (q *Queries) GetConversationMessageByID(ctx context.Context, arg GetConvers
 }
 
 const getConversationView = `-- name: GetConversationView :one
-SELECT c.id, c.company_id, c.persona_id, c.title, c.status, c.created_by_type, c.created_by_id, c.created_at, c.updated_at, c.last_message_at, c.kind, c.room_settings, COALESCE(p.name, '')::text AS persona_name, COALESCE(p.slug, '')::text AS persona_slug, ar.id AS active_run_id,
+SELECT c.id, c.company_id, c.persona_id, c.title, c.status, c.created_by_type, c.created_by_id, c.created_at, c.updated_at, c.last_message_at, c.kind, c.room_settings, c.project_id, COALESCE(p.name, '')::text AS persona_name, COALESCE(p.slug, '')::text AS persona_slug, ar.id AS active_run_id,
        ((SELECT count(*) FROM conversation_messages pm
          WHERE pm.conversation_id = c.id AND c.kind = 'direct' AND pm.author_type = 'human' AND pm.run_id IS NULL)
         + (SELECT count(*) FROM conversation_message_runs mr WHERE mr.conversation_id = c.id AND mr.run_id IS NULL))::bigint AS pending_messages,
@@ -285,6 +290,7 @@ func (q *Queries) GetConversationView(ctx context.Context, arg GetConversationVi
 		&i.Conversation.LastMessageAt,
 		&i.Conversation.Kind,
 		&i.Conversation.RoomSettings,
+		&i.Conversation.ProjectID,
 		&i.PersonaName,
 		&i.PersonaSlug,
 		&i.ActiveRunID,
@@ -507,7 +513,7 @@ func (q *Queries) ListConversationMessages(ctx context.Context, arg ListConversa
 }
 
 const listConversationViews = `-- name: ListConversationViews :many
-SELECT c.id, c.company_id, c.persona_id, c.title, c.status, c.created_by_type, c.created_by_id, c.created_at, c.updated_at, c.last_message_at, c.kind, c.room_settings, COALESCE(p.name, '')::text AS persona_name, COALESCE(p.slug, '')::text AS persona_slug, ar.id AS active_run_id,
+SELECT c.id, c.company_id, c.persona_id, c.title, c.status, c.created_by_type, c.created_by_id, c.created_at, c.updated_at, c.last_message_at, c.kind, c.room_settings, c.project_id, COALESCE(p.name, '')::text AS persona_name, COALESCE(p.slug, '')::text AS persona_slug, ar.id AS active_run_id,
        ((SELECT count(*) FROM conversation_messages pm
          WHERE pm.conversation_id = c.id AND c.kind = 'direct' AND pm.author_type = 'human' AND pm.run_id IS NULL)
         + (SELECT count(*) FROM conversation_message_runs mr WHERE mr.conversation_id = c.id AND mr.run_id IS NULL))::bigint AS pending_messages,
@@ -572,6 +578,7 @@ func (q *Queries) ListConversationViews(ctx context.Context, arg ListConversatio
 			&i.Conversation.LastMessageAt,
 			&i.Conversation.Kind,
 			&i.Conversation.RoomSettings,
+			&i.Conversation.ProjectID,
 			&i.PersonaName,
 			&i.PersonaSlug,
 			&i.ActiveRunID,
@@ -633,7 +640,7 @@ func (q *Queries) ListPendingConversationMessages(ctx context.Context, conversat
 const renameConversation = `-- name: RenameConversation :one
 UPDATE conversations SET title = $1, updated_at = $2
 WHERE company_id = $3 AND id = $4
-RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings
+RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings, project_id
 `
 
 type RenameConversationParams struct {
@@ -664,6 +671,7 @@ func (q *Queries) RenameConversation(ctx context.Context, arg RenameConversation
 		&i.LastMessageAt,
 		&i.Kind,
 		&i.RoomSettings,
+		&i.ProjectID,
 	)
 	return i, err
 }
@@ -671,7 +679,7 @@ func (q *Queries) RenameConversation(ctx context.Context, arg RenameConversation
 const setConversationStatus = `-- name: SetConversationStatus :one
 UPDATE conversations SET status = $1, updated_at = $2
 WHERE company_id = $3 AND id = $4
-RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings
+RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings, project_id
 `
 
 type SetConversationStatusParams struct {
@@ -702,6 +710,7 @@ func (q *Queries) SetConversationStatus(ctx context.Context, arg SetConversation
 		&i.LastMessageAt,
 		&i.Kind,
 		&i.RoomSettings,
+		&i.ProjectID,
 	)
 	return i, err
 }

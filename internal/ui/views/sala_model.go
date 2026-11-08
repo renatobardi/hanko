@@ -35,6 +35,7 @@ type RoomsVM struct {
 	NewAction   string
 	Picks       []RoomPick
 	Moderators  []Option
+	Projects    []Option // projeto da sala (ADR-0090), opcional; a primeira opção é "sem projeto"
 	Mode        string
 	RoomTitle   string
 	Message     string

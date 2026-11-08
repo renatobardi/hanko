@@ -1,8 +1,8 @@
 -- Chat (ADR-0027): conversas de um humano com uma persona, suas mensagens e as runs ligadas a elas.
 
 -- name: CreateConversation :one
-INSERT INTO conversations (id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at)
-VALUES (@id, @company_id, @persona_id, @title, 'open', @created_by_type, @created_by_id, @now, @now, @now)
+INSERT INTO conversations (id, company_id, persona_id, project_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at)
+VALUES (@id, @company_id, @persona_id, @project_id, @title, 'open', @created_by_type, @created_by_id, @now, @now, @now)
 RETURNING *;
 
 -- name: GetConversation :one

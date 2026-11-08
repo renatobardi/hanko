@@ -645,6 +645,10 @@ hanko chat list --persona cto
 
 - Cada mensagem humana dispara uma **run** com o gatilho `chat`: aparece em Execuções (identificada como Chat, ligada à conversa)
   e em Custos (linha "Chat"), e conta no orçamento da persona e da empresa e na trava semanal da assinatura.
+- **Onde a run roda:** a conversa pode ter um **projeto** (seletor "Projeto (opcional)" no formulário, `"project"` na API,
+  `hanko chat <persona> "…" --project <slug>`; ADR-0090). Com projeto, as runs usam o workspace e o ambiente dele, na mesma
+  precedência das tasks (projeto > persona); sem projeto, o workspace da persona ou um diretório temporário. Um chat sobre o
+  repositório de um projeto só vê os arquivos se a conversa tiver o projeto (ou a persona, o workspace).
 - Persona pausada, em erro, sem orçamento ou com a trava semanal atingida **não recebe a mensagem**: a UI, a API (409) e a CLI mostram o motivo.
   Reative a persona ou suba o limite e envie de novo.
 - Mensagens enviadas enquanto a persona responde esperam (até 20) e a run seguinte as responde juntas. Uma run de chat que falha

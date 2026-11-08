@@ -167,15 +167,16 @@ func (q *Queries) CountPendingDeliveries(ctx context.Context, arg CountPendingDe
 
 const createRoom = `-- name: CreateRoom :one
 
-INSERT INTO conversations (id, company_id, persona_id, kind, title, status, created_by_type, created_by_id, room_settings,
+INSERT INTO conversations (id, company_id, persona_id, project_id, kind, title, status, created_by_type, created_by_id, room_settings,
                            created_at, updated_at, last_message_at)
-VALUES ($1, $2, NULL, 'room', $3, 'open', $4, $5, $6, $7, $7, $7)
-RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings
+VALUES ($1, $2, NULL, $3, 'room', $4, 'open', $5, $6, $7, $8, $8, $8)
+RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings, project_id
 `
 
 type CreateRoomParams struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
+	ProjectID     *uuid.UUID
 	Title         string
 	CreatedByType string
 	CreatedByID   *uuid.UUID
@@ -188,6 +189,7 @@ func (q *Queries) CreateRoom(ctx context.Context, arg CreateRoomParams) (Convers
 	row := q.db.QueryRow(ctx, createRoom,
 		arg.ID,
 		arg.CompanyID,
+		arg.ProjectID,
 		arg.Title,
 		arg.CreatedByType,
 		arg.CreatedByID,
@@ -208,6 +210,7 @@ func (q *Queries) CreateRoom(ctx context.Context, arg CreateRoomParams) (Convers
 		&i.LastMessageAt,
 		&i.Kind,
 		&i.RoomSettings,
+		&i.ProjectID,
 	)
 	return i, err
 }
@@ -554,7 +557,7 @@ func (q *Queries) RemoveRoomParticipant(ctx context.Context, arg RemoveRoomParti
 const setRoomSettings = `-- name: SetRoomSettings :one
 UPDATE conversations SET room_settings = $1, updated_at = $2
 WHERE company_id = $3 AND id = $4 AND kind = 'room'
-RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings
+RETURNING id, company_id, persona_id, title, status, created_by_type, created_by_id, created_at, updated_at, last_message_at, kind, room_settings, project_id
 `
 
 type SetRoomSettingsParams struct {
@@ -585,6 +588,7 @@ func (q *Queries) SetRoomSettings(ctx context.Context, arg SetRoomSettingsParams
 		&i.LastMessageAt,
 		&i.Kind,
 		&i.RoomSettings,
+		&i.ProjectID,
 	)
 	return i, err
 }
