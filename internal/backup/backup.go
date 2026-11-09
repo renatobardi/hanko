@@ -6,6 +6,7 @@ package backup
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -73,15 +74,17 @@ func (b BlobEntry) member() string { return memberBlobs + b.CompanyID + "/" + b.
 
 // Manifest descreve o conteúdo do arquivo e o que é preciso para restaurá-lo com segurança.
 type Manifest struct {
-	Format        int         `json:"format"`
-	HankoVersion  string      `json:"hanko_version"`
-	CreatedAt     time.Time   `json:"created_at"`
-	Kind          string      `json:"kind"`
-	Label         string      `json:"label,omitempty"`
-	SchemaVersion int64       `json:"schema_version"`
-	DumpBytes     int64       `json:"dump_bytes"`
-	DumpSHA256    string      `json:"dump_sha256"`
-	Blobs         []BlobEntry `json:"blobs,omitempty"`
+	Format        int       `json:"format"`
+	HankoVersion  string    `json:"hanko_version"`
+	CreatedAt     time.Time `json:"created_at"`
+	Kind          string    `json:"kind"`
+	Label         string    `json:"label,omitempty"`
+	SchemaVersion int64     `json:"schema_version"`
+	// DBSchema é o schema do Postgres coberto pelo dump (ADR-0090); vazio nos backups antigos, que são de `public`.
+	DBSchema   string      `json:"db_schema,omitempty"`
+	DumpBytes  int64       `json:"dump_bytes"`
+	DumpSHA256 string      `json:"dump_sha256"`
+	Blobs      []BlobEntry `json:"blobs,omitempty"`
 }
 
 // Entry é um backup no diretório.
@@ -292,6 +295,13 @@ func (m *Manager) create(ctx context.Context, o CreateOptions) (Entry, error) {
 	if _, err := m.Cmd.LookPath(m.dumpBin()); err != nil {
 		return Entry{}, fmt.Errorf("backup: %s não encontrado no PATH (instale o cliente do PostgreSQL ou aponte HANKO_PG_DUMP_BIN): %w", m.dumpBin(), err)
 	}
+	if _, err := m.Cmd.LookPath(m.psqlBin()); err != nil {
+		return Entry{}, fmt.Errorf("backup: %s não encontrado no PATH (instale o cliente do PostgreSQL ou aponte HANKO_PSQL_BIN): %w", m.psqlBin(), err)
+	}
+	dbSchema, err := m.currentSchema(ctx, env)
+	if err != nil {
+		return Entry{}, err
+	}
 	var schema int64
 	if m.SchemaFn != nil {
 		if schema, err = m.SchemaFn(ctx); err != nil {
@@ -313,7 +323,7 @@ func (m *Manager) create(ctx context.Context, o CreateOptions) (Entry, error) {
 	h := sha256.New()
 	cw := &countWriter{w: io.MultiWriter(df, h)}
 	runErr := m.Cmd.Run(ctx, syscmd.Cmd{Name: m.dumpBin(), Env: env, Stdout: cw,
-		Args: []string{"--format=custom", "--no-owner", "--no-acl", "--lock-wait-timeout=60000"}})
+		Args: []string{"--format=custom", "--no-owner", "--no-acl", "--lock-wait-timeout=60000", "--schema=" + dbSchema}})
 	if cerr := df.Close(); runErr == nil && cerr != nil {
 		runErr = cerr
 	}
@@ -324,7 +334,7 @@ func (m *Manager) create(ctx context.Context, o CreateOptions) (Entry, error) {
 		return Entry{}, errors.New("backup: pg_dump não produziu saída")
 	}
 	man := Manifest{Format: FormatVersion, HankoVersion: m.Version, CreatedAt: m.now(), Kind: kind, Label: o.Label,
-		SchemaVersion: schema, DumpBytes: cw.n, DumpSHA256: hex.EncodeToString(h.Sum(nil))}
+		SchemaVersion: schema, DBSchema: dbSchema, DumpBytes: cw.n, DumpSHA256: hex.EncodeToString(h.Sum(nil))}
 
 	// 2) conteúdo fora do dump
 	var blobs []BlobEntry
@@ -697,6 +707,10 @@ func (m *Manager) restore(ctx context.Context, name string, o RestoreOptions) (R
 	if err != nil {
 		return RestoreReport{}, err
 	}
+	dbSchema, err := m.sameSchema(ctx, env, man)
+	if err != nil {
+		return RestoreReport{}, err
+	}
 	if err := m.ensureDir(); err != nil {
 		return RestoreReport{}, err
 	}
@@ -731,25 +745,9 @@ func (m *Manager) restore(ctx context.Context, name string, o RestoreOptions) (R
 	if err != nil {
 		return RestoreReport{}, err
 	}
-	// O banco é SUBSTITUÍDO, não mesclado: um --clean só apagaria o que o dump conhece e deixaria tabelas de migrations
-	// mais novas (o goose voltaria atrás e a próxima migration falharia com "já existe"). Por isso o script é
-	// "apaga o schema public + recria tudo", gerado pelo pg_restore e aplicado pelo psql em UMA transação: se o
-	// restore falhar no meio, nada muda.
-	script := filepath.Join(tmp, "restore.sql")
-	sf, err := os.OpenFile(script, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600) //nolint:gosec // diretório temporário
+	script, err := m.restoreScript(ctx, env, dbSchema, tmp, dumpPath)
 	if err != nil {
 		return RestoreReport{}, err
-	}
-	_, werr := io.WriteString(sf, "DROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n")
-	if werr == nil {
-		werr = m.Cmd.Run(ctx, syscmd.Cmd{Name: m.restoreBin(), Env: env, Stdout: sf,
-			Args: []string{"--no-owner", "--no-acl", "--file=-", dumpPath}})
-	}
-	if cerr := sf.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr != nil {
-		return RestoreReport{}, fmt.Errorf("backup: pg_restore: %w", werr)
 	}
 	if err := m.Cmd.Run(ctx, syscmd.Cmd{Name: m.psqlBin(), Env: env,
 		Args: []string{"-X", "-q", "--single-transaction", "-v", "ON_ERROR_STOP=1", "--dbname=" + dbName(env), "--file=" + script}}); err != nil {
@@ -771,6 +769,56 @@ func (m *Manager) restore(ctx context.Context, name string, o RestoreOptions) (R
 	}
 	m.log().Info("backup restaurado", "name", rep.Name, "schema", rep.SchemaVersion, "blobs", rep.BlobsRestored)
 	return rep, nil
+}
+
+// sameSchema recusa restaurar um backup de outro schema: os objetos do dump vêm qualificados pelo schema de origem e
+// iriam parar fora do schema da conexão (num banco compartilhado, sem permissão; no próprio, no lugar errado).
+// Devolve o schema corrente.
+func (m *Manager) sameSchema(ctx context.Context, env []string, man Manifest) (string, error) {
+	want := man.DBSchema
+	if want == "" {
+		want = DefaultSchema
+	}
+	cur, err := m.currentSchema(ctx, env)
+	if err != nil {
+		return "", err
+	}
+	if cur != want {
+		return "", fmt.Errorf("backup: o arquivo é do schema %q e esta conexão usa %q; para mudar de schema, copie os dados com a ferramenta de migração do banco, não com o restore", want, cur)
+	}
+	return cur, nil
+}
+
+// restoreScript monta o SQL do restore: o banco é SUBSTITUÍDO, não mesclado. Um --clean só apagaria o que o dump
+// conhece e deixaria tabelas de migrations mais novas (o goose voltaria atrás e a próxima migration falharia com "já
+// existe"). O script esvazia o schema corrente (sem apagá-lo: num banco compartilhado o papel não pode recriá-lo) e
+// recria tudo a partir do dump, sem a criação do schema; o psql aplica em UMA transação, então uma falha não muda nada.
+func (m *Manager) restoreScript(ctx context.Context, env []string, dbSchema, tmp, dumpPath string) (string, error) {
+	var list bytes.Buffer
+	if err := m.Cmd.Run(ctx, syscmd.Cmd{Name: m.restoreBin(), Env: env, Stdout: &list, Args: []string{"--list", dumpPath}}); err != nil {
+		return "", fmt.Errorf("backup: pg_restore --list: %w", err)
+	}
+	listPath := filepath.Join(tmp, "restore.list")
+	if err := os.WriteFile(listPath, withoutSchemaEntries(list.Bytes()), 0o600); err != nil {
+		return "", err
+	}
+	script := filepath.Join(tmp, "restore.sql")
+	sf, err := os.OpenFile(script, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600) //nolint:gosec // diretório temporário
+	if err != nil {
+		return "", err
+	}
+	_, werr := io.WriteString(sf, clearSchemaSQL(dbSchema))
+	if werr == nil {
+		werr = m.Cmd.Run(ctx, syscmd.Cmd{Name: m.restoreBin(), Env: env, Stdout: sf,
+			Args: []string{"--no-owner", "--no-acl", "--use-list=" + listPath, "--file=-", dumpPath}})
+	}
+	if cerr := sf.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		return "", fmt.Errorf("backup: pg_restore: %w", werr)
+	}
+	return script, nil
 }
 
 func dbName(env []string) string {

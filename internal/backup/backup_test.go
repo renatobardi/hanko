@@ -54,8 +54,17 @@ func (f *fakeBlobs) Put(_ context.Context, b BlobEntry, data []byte) error {
 	return nil
 }
 
-// pgFake simula pg_dump (escreve um dump) e pg_restore (guarda o arquivo recebido).
+// fakeList é a saída de `pg_restore --list` do pgFake: a criação do schema e o comentário dele saem do restore.
+const fakeList = "; Archive created at 2026-03-01\n3; 2615 2200 SCHEMA - public pg_database_owner\n" +
+	"4; 0 0 COMMENT - SCHEMA public pg_database_owner\n215; 1259 16386 TABLE public company hanko\n"
+
+// pgFake simula pg_dump (escreve um dump), pg_restore (lista ou gera o script a partir do arquivo recebido) e psql
+// (responde o schema corrente `public` ou guarda o script aplicado).
 func pgFake(dump string, restored *string) *syscmd.Fake {
+	return pgFakeSchema(dump, "public", restored)
+}
+
+func pgFakeSchema(dump, schema string, restored *string) *syscmd.Fake {
 	return &syscmd.Fake{
 		Paths: map[string]string{"pg_dump": "/bin/pg_dump", "pg_restore": "/bin/pg_restore", "psql": "/bin/psql"},
 		Handler: func(c syscmd.Cmd) error {
@@ -63,14 +72,22 @@ func pgFake(dump string, restored *string) *syscmd.Fake {
 			case "pg_dump":
 				_, err := io.WriteString(c.Stdout, dump)
 				return err
-			case "pg_restore": // gera o script SQL a partir do dump (--file=-)
+			case "pg_restore": // --list devolve o índice; senão gera o script SQL a partir do dump (--file=-)
+				if c.Args[0] == "--list" {
+					_, err := io.WriteString(c.Stdout, fakeList)
+					return err
+				}
 				b, err := os.ReadFile(c.Args[len(c.Args)-1])
 				if err != nil {
 					return err
 				}
 				_, err = io.WriteString(c.Stdout, "-- script\n"+string(b)+"\n")
 				return err
-			case "psql": // aplica o script
+			case "psql": // responde o schema corrente ou aplica o script
+				if strings.Contains(c.String(), "current_schema()") {
+					_, err := io.WriteString(c.Stdout, schema+"\n")
+					return err
+				}
 				for _, a := range c.Args {
 					if f, ok := strings.CutPrefix(a, "--file="); ok {
 						b, err := os.ReadFile(f)
@@ -139,7 +156,7 @@ func TestCreateListVerifyRestoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(restored, "DROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n") || !strings.Contains(restored, "PGDMP-conteudo-do-banco") || rep.BlobsRestored != 2 || rep.NeedsMigrate {
+	if !strings.HasPrefix(restored, clearSchemaSQL("public")) || strings.Contains(restored, "DROP SCHEMA") || !strings.Contains(restored, "PGDMP-conteudo-do-banco") || rep.BlobsRestored != 2 || rep.NeedsMigrate {
 		t.Fatalf("restored=%q rep=%+v", restored, rep)
 	}
 	if string(blobs.data["c1/a2"]) != "arquivo dois" {
@@ -402,5 +419,87 @@ func TestErrorsNeverCarryTheDatabasePassword(t *testing.T) {
 		t.Fatal("o Restore devia falhar")
 	} else if strings.Contains(err.Error(), "s3nha-secreta") {
 		t.Fatalf("erro do Restore vaza a senha: %v", err)
+	}
+}
+
+// Num Postgres compartilhado o papel do Hanko só enxerga o próprio schema (ADR-0090): o dump é escopado ao schema
+// corrente, o manifest o registra e o restore esvazia esse schema em vez de apagar e recriar `public`.
+func TestBackupIsScopedToTheCurrentSchema(t *testing.T) {
+	var restored string
+	fake := pgFakeSchema("PGDMP-schema", "hanko_prd", &restored)
+	m := newMgr(t, fake, nil)
+	ctx := context.Background()
+	e, err := m.Create(ctx, CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Manifest.DBSchema != "hanko_prd" {
+		t.Fatalf("manifest sem o schema: %+v", e.Manifest)
+	}
+	var dump syscmd.Cmd
+	for _, c := range fake.Calls() {
+		if c.Cmd.Name == "pg_dump" {
+			dump = c.Cmd
+		}
+	}
+	if !strings.Contains(dump.String(), "--schema=hanko_prd") {
+		t.Fatalf("pg_dump sem o schema: %s", dump)
+	}
+	if _, err := m.Restore(ctx, "latest", RestoreOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(restored, clearSchemaSQL("hanko_prd")) || strings.Contains(restored, "DROP SCHEMA") || strings.Contains(restored, "CREATE SCHEMA") {
+		t.Fatalf("script do restore: %q", restored)
+	}
+	var use string
+	for _, c := range fake.Calls() {
+		for _, a := range c.Cmd.Args {
+			if v, ok := strings.CutPrefix(a, "--use-list="); ok {
+				use = v
+			}
+		}
+	}
+	if use == "" {
+		t.Fatal("o pg_restore não recebeu a lista filtrada")
+	}
+}
+
+// Um backup de outro schema (ou um antigo, que é de `public`) não é restaurado numa conexão com outro schema.
+func TestRestoreRefusesAnotherSchema(t *testing.T) {
+	var r string
+	m := newMgr(t, pgFake("D", &r), nil)
+	ctx := context.Background()
+	if _, err := m.Create(ctx, CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	m.Cmd = pgFakeSchema("D", "hanko_prd", &r)
+	_, err := m.Restore(ctx, "latest", RestoreOptions{Force: true})
+	if err == nil || !strings.Contains(err.Error(), `schema "public"`) || !strings.Contains(err.Error(), `usa "hanko_prd"`) {
+		t.Fatalf("esperava recusa por schema: %v", err)
+	}
+	if r != "" {
+		t.Fatalf("o restore aplicou algo: %q", r)
+	}
+}
+
+func TestCurrentSchemaRejectsOddNames(t *testing.T) {
+	for _, s := range []string{"", "Hanko", "a;drop", "x y", strings.Repeat("a", 64)} {
+		var r string
+		m := newMgr(t, pgFakeSchema("D", s, &r), nil)
+		if _, err := m.Create(context.Background(), CreateOptions{}); err == nil {
+			t.Fatalf("schema %q devia ser recusado", s)
+		}
+	}
+}
+
+func TestWithoutSchemaEntries(t *testing.T) {
+	got := string(withoutSchemaEntries([]byte(fakeList + "216; 0 16386 TABLE DATA public company hanko\n")))
+	if strings.Contains(got, " SCHEMA - ") || strings.Contains(got, "COMMENT - SCHEMA") {
+		t.Fatalf("sobrou a entrada do schema: %q", got)
+	}
+	for _, want := range []string{"; Archive created", "TABLE public company", "TABLE DATA public company"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("faltou %q: %q", want, got)
+		}
 	}
 }

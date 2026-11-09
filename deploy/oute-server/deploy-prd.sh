@@ -116,9 +116,16 @@ HANKO_MEMORY_PROVIDER=ai-memory
 HANKO_VERSION=${REV}
 HANKO_PORT=${PORT}
 HANKO_LOG_FORMAT=json
-COMPOSE_PROFILES=memory
 CFG
 mv .env.tmp .env; chmod 600 .env; rm -f .env.secrets
+# Banco (ADR-0090): a HANKO_DATABASE_URL do .env manda. Sem ela (instalação nova, anterior à ADR-0090 ou rollback), o
+# banco é o Postgres próprio do compose (profile localdb). Em prd ela aponta para o schema hanko_prd do oute-supabase-db
+# e vem do cofre; o deploy nunca a imprime.
+if ! grep -q '^HANKO_DATABASE_URL=' .env || grep -Eq '^HANKO_DATABASE_URL=[^#]*@postgres[:/]' .env; then
+  echo 'COMPOSE_PROFILES=memory,localdb' >> .env; echo '==> banco: Postgres próprio (profile localdb)'
+else
+  echo 'COMPOSE_PROFILES=memory' >> .env; echo '==> banco: externo (HANKO_DATABASE_URL do .env)'
+fi
 # ai-memory (ADR-0015): digest fixado no primeiro deploy; atualizar = trocar AI_MEMORY_IMAGE no .env de propósito
 if ! grep -q '^AI_MEMORY_IMAGE=' .env; then
   d=akitaonrails/ai-memory:3.3.1@sha256:d2dcf87d15b48fd0a96f46f0a9e9a69097f68c972971647847cd17a9ce08caba
@@ -147,9 +154,11 @@ else
   UP_FLAG="--build"
 fi
 
-# 4) Sobe e valida. Antes, se já há banco no ar (falha do `compose ps` aborta; lista vazia = primeira instalação), um backup consistente (pg_dump -Fc + ai-memory em /var/backups/hanko):
+# 4) Sobe e valida. Antes, um backup consistente (pg_dump -Fc + ai-memory em /var/backups/hanko). Banco externo (ADR-0090):
+#    sempre (o backup.sh fala com ele por um contêiner descartável do cliente). Postgres próprio: só se já há banco no ar
+#    (falha do `compose ps` aborta; lista vazia = primeira instalação).
 #    a versão nova pode trazer migrations; voltar é `deploy/oute-server/restore.sh --apply` com esse dump.
-x "set -e; ids=\$(docker compose -f /opt/app/docker-compose.yml ps -q postgres) || { echo 'erro: docker compose ps falhou; abortando antes do deploy (sem como saber se há banco no ar)' >&2; exit 1; }; if [ -n \"\$ids\" ]; then bash /opt/app/deploy/oute-server/backup.sh && echo 'backup pré-deploy ok'; else echo 'sem banco no ar: primeira instalação, sem backup pré-deploy'; fi"
+x "set -e; url=\$(sed -n 's/^HANKO_DATABASE_URL=//p' \${HANKO_APP_DIR:-/opt/app}/.env 2>/dev/null | tail -1); case \"\$url\" in ''|*@postgres:*|*@postgres/*) ids=\$(docker compose -f /opt/app/docker-compose.yml ps -q postgres) || { echo 'erro: docker compose ps falhou; abortando antes do deploy (sem como saber se há banco no ar)' >&2; exit 1; }; if [ -n \"\$ids\" ]; then bash /opt/app/deploy/oute-server/backup.sh && echo 'backup pré-deploy ok'; else echo 'sem banco no ar: primeira instalação, sem backup pré-deploy'; fi ;; *) bash /opt/app/deploy/oute-server/backup.sh && echo 'backup pré-deploy ok (banco externo)' ;; esac"
 x "cd /opt/app && docker compose up -d ${UP_FLAG}"
 x "for i in \$(seq 1 90); do curl -fsS --max-time 2 http://127.0.0.1:${PORT}/readyz >/dev/null && echo 'readyz ok' && exit 0; sleep 2; done; docker compose -f /opt/app/docker-compose.yml logs --tail 80 hanko; exit 1"
 x "for i in \$(seq 1 30); do s=\$(docker inspect -f '{{.State.Health.Status}}' \$(docker compose -f /opt/app/docker-compose.yml ps -q ai-memory) 2>/dev/null); [ \"\$s\" = healthy ] && echo 'ai-memory ok' && exit 0; sleep 2; done; echo \"AVISO: ai-memory \${s:-ausente}; o Hanko segue sem memória (outbox)\"; docker compose -f /opt/app/docker-compose.yml logs --tail 30 ai-memory"
@@ -166,7 +175,7 @@ x "docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko update --ch
 
 # 4b) Backup: timer systemd DENTRO do LXC (diário 01:30 UTC) roda deploy/oute-server/backup.sh → /var/backups/hanko
 #     (pg_dump -Fc + tar do ai-memory com o container pausado). O restic semanal do lab coleta esse diretório
-#     e o próprio banco (inventário: strategy pg_dump + backup_paths). Idempotente: reescreve as units e reativa.
+#     (com banco externo, o schema também vai no dump semanal do oute-supabase-db). Idempotente: reescreve as units e reativa.
 # As units saem de `hanko service print` (mesmo gerador testado do `hanko service install`), não de heredocs aqui.
 # O binário é o do PATH: a imagem do prd (Dockerfile.agents) o instala em /usr/local/bin, não em /hanko.
 # Cada unit é gerada num .tmp e só substitui a atual se saiu inteira: uma falha não deixa unit vazia no lugar.

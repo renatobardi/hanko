@@ -1,6 +1,9 @@
 # Stack de produção no oute-server (convenção do repo lab: docker-compose.yml na raiz, app em /opt/app
 # dentro de um LXC próprio, nginx + certbot no host fazendo a borda pública).
 # O .env é gerado DENTRO do LXC por deploy/oute-server/deploy-prd.sh (segredos nunca saem de lá).
+# Banco (ADR-0090): HANKO_DATABASE_URL do .env manda. Em prd aponta para o schema hanko_prd do Postgres compartilhado
+# (oute-supabase-db). Sem ela, o Hanko usa o Postgres próprio daqui, que só sobe com o profile `localdb`
+# (COMPOSE_PROFILES=memory,localdb; o deploy-prd.sh liga sozinho). Voltar ao banco próprio = tirar a URL do .env.
 # Dev local continua em deploy/compose.yaml.
 name: hanko
 
@@ -15,7 +18,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      HANKO_DATABASE_URL: postgres://hanko:${POSTGRES_PASSWORD:?gere o .env com deploy-prd.sh}@postgres:5432/hanko?sslmode=disable
+      HANKO_DATABASE_URL: ${HANKO_DATABASE_URL:-postgres://hanko:${POSTGRES_PASSWORD:-}@postgres:5432/hanko?sslmode=disable}
       HANKO_ADDR: 0.0.0.0:7420
       HANKO_MEMORY_URL: http://ai-memory:49374
       HANKO_MEMORY_TOKEN: ${AI_MEMORY_AUTH_TOKEN:-}
@@ -24,25 +27,28 @@ services:
       HANKO_BLOB_DRIVER: fs
       HANKO_BLOB_DIR: /var/lib/hanko/blobs
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4317
-      HANKO_DB_DISK_PATH: /pgdata-disk      # espaço livre do disco do Postgres, para o alerta db_disk_low (ADR-0083)
+      # sem HANKO_DB_DISK_PATH: o disco do banco não é deste LXC, então o alerta db_disk_low não é avaliado (ADR-0090)
     ports:
       - "${HANKO_PORT:-3810}:7420"          # o nginx do host conecta em <ip-do-lxc>:3810
     volumes:
       - agent-home:/home/node               # login do claude/codex e workspaces das personas
       - blobs:/var/lib/hanko/blobs          # artefatos e anexos (driver fs); o backup.sh arquiva este volume
-      - pgdata:/pgdata-disk:ro              # só para medir o espaço livre (statfs); o Hanko não lê nem escreve nos dados do banco
     depends_on:
       postgres:
         condition: service_healthy
+        required: false                     # banco externo: o serviço postgres fica fora (profile localdb desligado)
     networks: [hanko]
 
+  # Postgres próprio, opcional (profile `localdb`): instalação sem banco externo. O deploy-prd.sh liga o profile
+  # quando o .env não tem HANKO_DATABASE_URL (ou ela aponta para @postgres).
   postgres:
+    profiles: [localdb]
     image: postgres:17
     restart: unless-stopped
     environment:
       POSTGRES_USER: hanko
       POSTGRES_DB: hanko
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?gere o .env com deploy-prd.sh}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
