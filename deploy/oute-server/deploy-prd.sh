@@ -118,7 +118,7 @@ HANKO_PORT=${PORT}
 HANKO_LOG_FORMAT=json
 CFG
 mv .env.tmp .env; chmod 600 .env; rm -f .env.secrets
-# Banco (ADR-0090): a HANKO_DATABASE_URL do .env manda. Sem ela (instalação nova, anterior à ADR-0090 ou rollback), o
+# Banco (ADR-0092): a HANKO_DATABASE_URL do .env manda. Sem ela (instalação nova, anterior à ADR-0092 ou rollback), o
 # banco é o Postgres próprio do compose (profile localdb). Em prd ela aponta para o schema hanko_prd do oute-supabase-db
 # e vem do cofre; o deploy nunca a imprime.
 if ! grep -q '^HANKO_DATABASE_URL=' .env || grep -Eq '^HANKO_DATABASE_URL=[^#]*@postgres[:/]' .env; then
@@ -154,7 +154,7 @@ else
   UP_FLAG="--build"
 fi
 
-# 4) Sobe e valida. Antes, um backup consistente (pg_dump -Fc + ai-memory em /var/backups/hanko). Banco externo (ADR-0090):
+# 4) Sobe e valida. Antes, um backup consistente (pg_dump -Fc + ai-memory em /var/backups/hanko). Banco externo (ADR-0092):
 #    sempre (o backup.sh fala com ele por um contêiner descartável do cliente). Postgres próprio: só se já há banco no ar
 #    (falha do `compose ps` aborta; lista vazia = primeira instalação).
 #    a versão nova pode trazer migrations; voltar é `deploy/oute-server/restore.sh --apply` com esse dump.

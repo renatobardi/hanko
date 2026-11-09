@@ -674,7 +674,7 @@ func (e *env) backupScheduleCmd() *cobra.Command {
 	return c
 }
 
-// dbSchemaOf é o schema do Postgres coberto pelo backup; os antigos, sem o campo, são de `public` (ADR-0090).
+// dbSchemaOf é o schema do Postgres coberto pelo backup; os antigos, sem o campo, são de `public` (ADR-0092).
 func dbSchemaOf(m backup.Manifest) string {
 	if m.DBSchema == "" {
 		return backup.DefaultSchema

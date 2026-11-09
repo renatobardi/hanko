@@ -2,7 +2,7 @@
 # Backup do Hanko em produção (roda DENTRO do LXC hanko-prd, como root, pelo timer hanko-backup).
 # Gera, em HANKO_BACKUP_DIR (padrão /var/backups/hanko, modo 0700), um par consistente:
 #   hanko-<UTC>.pgdump         pg_dump -Fc do banco (snapshot transacional; conferido com pg_restore -l). Com banco
-#                              externo (ADR-0090), só o schema corrente do papel do Hanko (prd: hanko_prd)
+#                              externo (ADR-0092), só o schema corrente do papel do Hanko (prd: hanko_prd)
 #   aimemory-<UTC>.tar.gz      volume do ai-memory (wiki git + índice SQLite) com o container pausado
 #   blobs-<UTC>.tar            conteúdo dos artefatos no disco (driver fs, ADR-0065), depois do dump: todo arquivo que
 #                              o dump referencia já está gravado (o conteúdo sobe antes da transação do artefato)

@@ -27,7 +27,7 @@ func preDeployBackupLine(t *testing.T) string {
 }
 
 // Erro do `docker compose ps` aborta o deploy; lista vazia é primeira instalação; com banco, faz backup. Com banco
-// externo no .env (ADR-0090) o backup roda sempre, sem perguntar ao compose pelo serviço postgres.
+// externo no .env (ADR-0092) o backup roda sempre, sem perguntar ao compose pelo serviço postgres.
 func TestDeployPrdPreBackupDistinguishesPsFailure(t *testing.T) {
 	line := preDeployBackupLine(t)
 	const external = "HANKO_DATABASE_URL=postgres://app_hanko_prd:x@10.173.117.51:5433/postgres\n"
@@ -188,7 +188,7 @@ func TestDeployPrdVhostFitsTheUploadBudget(t *testing.T) {
 	}
 }
 
-// O restore.sh do prd e o restore interno esvaziam o schema com o mesmo SQL (ADR-0090).
+// O restore.sh do prd e o restore interno esvaziam o schema com o mesmo SQL (ADR-0092).
 func TestClearSchemaSQLMatchesTheRestoreScript(t *testing.T) {
 	b, err := os.ReadFile("../../deploy/oute-server/clear-schema.sql")
 	if err != nil {
@@ -199,7 +199,7 @@ func TestClearSchemaSQLMatchesTheRestoreScript(t *testing.T) {
 	}
 }
 
-// Banco externo (ADR-0090): a URL vem do .env, o Postgres próprio só sobe no profile localdb e o Hanko não monta mais o
+// Banco externo (ADR-0092): a URL vem do .env, o Postgres próprio só sobe no profile localdb e o Hanko não monta mais o
 // volume do banco para o alerta db_disk_low.
 func TestComposeTakesTheDatabaseFromEnv(t *testing.T) {
 	b, err := os.ReadFile("../../docker-compose.yml")

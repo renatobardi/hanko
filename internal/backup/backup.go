@@ -80,7 +80,7 @@ type Manifest struct {
 	Kind          string    `json:"kind"`
 	Label         string    `json:"label,omitempty"`
 	SchemaVersion int64     `json:"schema_version"`
-	// DBSchema é o schema do Postgres coberto pelo dump (ADR-0090); vazio nos backups antigos, que são de `public`.
+	// DBSchema é o schema do Postgres coberto pelo dump (ADR-0092); vazio nos backups antigos, que são de `public`.
 	DBSchema   string      `json:"db_schema,omitempty"`
 	DumpBytes  int64       `json:"dump_bytes"`
 	DumpSHA256 string      `json:"dump_sha256"`

@@ -222,7 +222,7 @@ selo: `python3 scripts/gen-pwa-icons.py` (Pillow).
 
 ### 3.1 Produção (`hanko-prd`, oute-server)
 
-**Banco (ADR-0090):** o prd usa o schema `hanko_prd` do Postgres compartilhado `oute-supabase-db` (papel `app_hanko_prd`,
+**Banco (ADR-0092):** o prd usa o schema `hanko_prd` do Postgres compartilhado `oute-supabase-db` (papel `app_hanko_prd`,
 `search_path` fixo). A `HANKO_DATABASE_URL` fica no `.env` do LXC (vem do cofre, item `hanko-prd HANKO_DATABASE_URL`); o
 `backup.sh` e o `restore.sh` a leem de lá e falam com o banco por um contêiner descartável `postgres:17`
 (`HANKO_PG_CLIENT_IMAGE`), com a conexão só em variáveis `PG*`. Sem a variável, ou com host `postgres`, vale o Postgres
@@ -344,7 +344,7 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 
 ### Alerta de disco do Postgres (`db_disk_low`)
 
-No prd o banco é o `oute-supabase-db` (ADR-0090), cujo disco não é deste LXC: o compose não define `HANKO_DB_DISK_PATH` e o
+No prd o banco é o `oute-supabase-db` (ADR-0092), cujo disco não é deste LXC: o compose não define `HANKO_DB_DISK_PATH` e o
 alerta não é avaliado. O que segue vale para uma instalação com Postgres próprio que queira o alerta.
 
 O Postgres roda em outro contêiner, então o Hanko só mede o disco dele se enxergar o volume. Monte `pgdata` **só para leitura** (por exemplo em `/pgdata-disk`) no contêiner do Hanko e defina `HANKO_DB_DISK_PATH=/pgdata-disk`; o Hanko só consulta o espaço livre do sistema de arquivos e não lê nem escreve nos dados do banco. Com o caminho, cada empresa com telemetria nos últimos 30 dias recebe `warning` abaixo de `limit.db_disk_warn_gib` (padrão 20 GiB) e `critical` abaixo de `limit.db_disk_critical_gib` (padrão 5 GiB), ajustáveis pela API de ajustes de alerta. Sem `HANKO_DB_DISK_PATH` o alerta não é avaliado. Para desligar: tire a variável e a linha do volume.
@@ -365,7 +365,7 @@ hanko service install                             # systemd/launchd (--user sem 
 ```
 
 O `hanko backup` cobre só o schema corrente da conexão (o `search_path`; `public` num banco próprio) e registra o schema no
-manifest; o restore esvazia esse schema e recria tudo numa transação, e recusa backup de outro schema (ADR-0090).
+manifest; o restore esvazia esse schema e recria tudo numa transação, e recusa backup de outro schema (ADR-0092).
 
 A imagem de contêiner (distroless) não tem `pg_dump`: lá a tela de Backups fica desligada e valem `backup.sh` e o restic.
 

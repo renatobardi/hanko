@@ -1,4 +1,4 @@
-# ADR-0090 — Banco do prd num Postgres compartilhado, schema `hanko_prd`
+# ADR-0092 — Banco do prd num Postgres compartilhado, schema `hanko_prd`
 Data: 2026-11-08 · Status: aceita (Bardi, 2026-11-08) · Altera: ADR-0008, ADR-0062, ADR-0083 · Usa: ADR-0011
 
 ## Contexto

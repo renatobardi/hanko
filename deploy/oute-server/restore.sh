@@ -5,7 +5,7 @@
 #   restore.sh --apply [--pgdump ARQ] [--aimemory ARQ] [--blobs ARQ] [--yes]
 #                                                restaura o dump num banco novo `hanko` (o atual vira hanko_pre_restore_<ts>,
 #                                                nunca é dropado), substitui o volume do ai-memory e repõe os artefatos em disco
-# Banco externo (HANKO_DATABASE_URL no .env fora do compose, ADR-0090): o --check só confere o dump (não há banco
+# Banco externo (HANKO_DATABASE_URL no .env fora do compose, ADR-0092): o --check só confere o dump (não há banco
 # descartável) e o --apply esvazia o schema corrente e restaura nele em UMA transação, depois de guardar um dump do
 # estado atual em pre-restore-<ts>.pgdump; dump de outro schema é recusado.
 # Sem --pgdump/--aimemory/--blobs usa os arquivos mais novos de HANKO_BACKUP_DIR (/var/backups/hanko).

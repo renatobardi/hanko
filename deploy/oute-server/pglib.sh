@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Funções comuns do backup.sh e do restore.sh para falar com o Postgres do Hanko (ADR-0090). Dois modos:
+# Funções comuns do backup.sh e do restore.sh para falar com o Postgres do Hanko (ADR-0092). Dois modos:
 #   local    o banco é o serviço `postgres` do compose (profile localdb); os clientes rodam dentro dele (docker compose exec)
 #   externo  HANKO_DATABASE_URL do .env aponta para outro servidor (prd: schema hanko_prd do oute-supabase-db); os
 #            clientes rodam num contêiner descartável da imagem do Postgres (HANKO_PG_CLIENT_IMAGE), com a conexão só

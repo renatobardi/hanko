@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-// Banco externo (ADR-0090): o backup.sh e o restore.sh leem a HANKO_DATABASE_URL do .env, falam com o banco por um
+// Banco externo (ADR-0092): o backup.sh e o restore.sh leem a HANKO_DATABASE_URL do .env, falam com o banco por um
 // cliente descartável (aqui, o docker falso roda o binário local) e só tocam no schema corrente da conexão.
 func TestBackupAndRestoreWithExternalSchema(t *testing.T) {
 	base := os.Getenv("HANKO_TEST_DATABASE_URL")

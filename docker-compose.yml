@@ -1,7 +1,7 @@
 # Stack de produção no oute-server (convenção do repo lab: docker-compose.yml na raiz, app em /opt/app
 # dentro de um LXC próprio, nginx + certbot no host fazendo a borda pública).
 # O .env é gerado DENTRO do LXC por deploy/oute-server/deploy-prd.sh (segredos nunca saem de lá).
-# Banco (ADR-0090): HANKO_DATABASE_URL do .env manda. Em prd aponta para o schema hanko_prd do Postgres compartilhado
+# Banco (ADR-0092): HANKO_DATABASE_URL do .env manda. Em prd aponta para o schema hanko_prd do Postgres compartilhado
 # (oute-supabase-db). Sem ela, o Hanko usa o Postgres próprio daqui, que só sobe com o profile `localdb`
 # (COMPOSE_PROFILES=memory,localdb; o deploy-prd.sh liga sozinho). Voltar ao banco próprio = tirar a URL do .env.
 # Dev local continua em deploy/compose.yaml.
@@ -27,7 +27,7 @@ services:
       HANKO_BLOB_DRIVER: fs
       HANKO_BLOB_DIR: /var/lib/hanko/blobs
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4317
-      # sem HANKO_DB_DISK_PATH: o disco do banco não é deste LXC, então o alerta db_disk_low não é avaliado (ADR-0090)
+      # sem HANKO_DB_DISK_PATH (o disco do banco não é deste LXC): o alerta db_disk_low não é avaliado (ADR-0092)
     ports:
       - "${HANKO_PORT:-3810}:7420"          # o nginx do host conecta em <ip-do-lxc>:3810
     volumes:

@@ -205,10 +205,11 @@ func TestVerifyDetectsCorruptionAndTruncation(t *testing.T) {
 	if _, err := m.Verify(context.Background(), e.Name); !errors.Is(err, ErrCorrupt) {
 		t.Fatalf("adulterado: %v", err)
 	}
+	before := len(m.Cmd.(*syscmd.Fake).Calls()) // o Create já consultou o banco (schema corrente e dump)
 	if _, err := m.Restore(context.Background(), e.Name, RestoreOptions{}); !errors.Is(err, ErrCorrupt) {
 		t.Fatalf("restore adulterado: %v", err)
 	}
-	for _, c := range m.Cmd.(*syscmd.Fake).Calls() {
+	for _, c := range m.Cmd.(*syscmd.Fake).Calls()[before:] {
 		if c.Cmd.Name == "pg_restore" || c.Cmd.Name == "psql" {
 			t.Fatal("o restore não pode rodar com arquivo corrompido")
 		}
@@ -422,7 +423,7 @@ func TestErrorsNeverCarryTheDatabasePassword(t *testing.T) {
 	}
 }
 
-// Num Postgres compartilhado o papel do Hanko só enxerga o próprio schema (ADR-0090): o dump é escopado ao schema
+// Num Postgres compartilhado o papel do Hanko só enxerga o próprio schema (ADR-0092): o dump é escopado ao schema
 // corrente, o manifest o registra e o restore esvazia esse schema em vez de apagar e recriar `public`.
 func TestBackupIsScopedToTheCurrentSchema(t *testing.T) {
 	var restored string

@@ -12,7 +12,7 @@ import (
 	"github.com/renatobardi/hanko/internal/syscmd"
 )
 
-// O backup cobre só o schema corrente da conexão (ADR-0090): num Postgres compartilhado o papel do Hanko vê apenas o
+// O backup cobre só o schema corrente da conexão (ADR-0092): num Postgres compartilhado o papel do Hanko vê apenas o
 // próprio schema (search_path fixo), não cria banco nem schema e não pode tocar em `public`. Na instalação com banco
 // próprio o schema corrente é `public` e o comportamento é o de antes.
 
