@@ -16,7 +16,9 @@ _pg_urldecode() { local s="${1//+/ }"; printf '%b' "${s//%/\\x}"; }
 # pg_mode_init lê a HANKO_DATABASE_URL do .env e decide o modo. Sem URL ou com host `postgres`: local.
 pg_mode_init() {
   local url re q
-  url="$(sed -n 's/^HANKO_DATABASE_URL=//p' "${APP_DIR}/.env" 2>/dev/null | tail -1)"
+  url=""
+  # sem .env (ou sem a linha) = local; com pipefail, o sed num arquivo ausente derrubaria o script
+  [[ ! -f "${APP_DIR}/.env" ]] || url="$({ sed -n 's/^HANKO_DATABASE_URL=//p' "${APP_DIR}/.env" || true; } | tail -1)"
   url="${url%\"}"; url="${url#\"}"
   re='^postgres(ql)?://([^:@/]+)(:([^@]*))?@([^:/?]+)(:([0-9]+))?/([^?]+)(\?(.*))?$'
   if [[ -z "$url" ]]; then return 0; fi
