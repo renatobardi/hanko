@@ -33,6 +33,7 @@ const (
 
 // Passos nomeados do probe, na ordem em que rodam.
 const (
+	StepSecrets     = "secrets"     // as referências ${secret:}/${secretfile:} do adapter_config existem e a persona as alcança
 	StepEnvironment = "environment" // o ambiente de execução responde (conexão, imagem, sandbox)
 	StepBinary      = "binary"      // o binário do harness existe no alvo
 	StepAuth        = "auth"        // há credencial utilizável (login ou chave de API)
@@ -40,7 +41,7 @@ const (
 )
 
 // ReadinessSteps lista os passos na ordem do probe.
-var ReadinessSteps = []string{StepEnvironment, StepBinary, StepAuth, StepModel}
+var ReadinessSteps = []string{StepSecrets, StepEnvironment, StepBinary, StepAuth, StepModel}
 
 // ReadinessStep é o resultado de um passo do probe.
 type ReadinessStep struct {
@@ -149,6 +150,19 @@ var builtinPriceAlias = map[string]string{
 	"opus": "claude-opus", "sonnet": "claude-sonnet", "haiku": "claude-haiku",
 }
 
+// ModelFamilyAlias reconhece um nome que é só a família de preço (claude-haiku, claude-sonnet...), não um modelo que o
+// harness aceite: devolve o alias que o harness entende (haiku, sonnet...) e ok=true. Um id completo
+// (claude-haiku-4-5) ou o próprio alias devolvem ok=false.
+func ModelFamilyAlias(model string) (string, bool) {
+	m := strings.ToLower(strings.TrimSpace(model))
+	for alias, fam := range builtinPriceAlias {
+		if m == fam {
+			return alias, true
+		}
+	}
+	return "", false
+}
+
 // AgentOfModel infere o harness de um nome de modelo pelo prefixo conhecido; "" quando serve a qualquer um.
 func AgentOfModel(model string) string {
 	m := strings.ToLower(model)
@@ -219,6 +233,9 @@ func BuildModelCatalog(agent string, priceModels []string, reports []ModelReport
 	for _, p := range priceModels {
 		if strings.TrimSpace(p) == "" || strings.HasSuffix(p, "-") {
 			continue // prefixo de família ("gpt-"), não um modelo selecionável
+		}
+		if _, fam := ModelFamilyAlias(p); fam {
+			continue // família de preço (claude-haiku): o harness só aceita o alias ou o id completo
 		}
 		add(AgentOfModel(p), p, ModelPriced)
 	}

@@ -356,6 +356,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/politica-revisao", post(co(s.handleReviewPolicy)))
 	mux.HandleFunc("GET /c/{company}/tasks/{task}/git", co(s.handleTaskGit))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/git/limpar", post(co(s.handleTaskGitClean)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/git/enviar", post(co(s.handleTaskGitPush)))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/nova-sessao", post(co(s.handleNewSession)))
 
 	mux.HandleFunc("GET /c/{company}/personas", co(s.handlePersonas))

@@ -129,6 +129,10 @@ type TaskGitVM struct {
 	MirrorOK bool
 	MirrorEr string
 	WtError  string
+	// Pushed é o estado do envio ao remoto ("nunca", "em dia (sha)", "atrasado (sha)"); PushAction envia a branch (ADR-0091).
+	Pushed     string
+	PushAction string
+	CanPush    bool
 
 	Files         []GitFileRow
 	Clean         bool

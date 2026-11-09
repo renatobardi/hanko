@@ -135,6 +135,8 @@ func wizardLabel(ctx context.Context, k domain.OnboardingStepKey) string {
 
 func wizardProbeLabel(ctx context.Context, name string) string {
 	switch name {
+	case domain.StepSecrets:
+		return i18n.T(ctx, "segredos")
 	case domain.StepEnvironment:
 		return i18n.T(ctx, "ambiente")
 	case domain.StepBinary:

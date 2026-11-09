@@ -91,6 +91,13 @@ templ RoomsPage(sh Shell, vm RoomsVM) {
 							@Select("moderator", "r-mod", vm.Moderators, false)
 							<span class="hint">{ i18n.T(ctx, "Responde quando ninguém é citado. Padrão: a primeira escolhida.") }</span>
 						</div>
+						if len(vm.Projects) > 1 {
+							<div class="field">
+								<label for="r-project">{ i18n.T(ctx, "Projeto (opcional)") }</label>
+								@Select("project", "r-project", vm.Projects, false)
+								<span class="hint">{ i18n.T(ctx, "As personas trabalham no workspace e no ambiente do projeto quando não têm os seus.") }</span>
+							</div>
+						}
 						<div class="field">
 							<span class="lbl">{ i18n.T(ctx, "Quem responde") }</span>
 							<div class="radio-cards rc2">

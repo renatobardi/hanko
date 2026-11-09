@@ -56,6 +56,9 @@ type ConversationFilter struct {
 // CreateConversationInput abre uma conversa. Title vazio deriva da primeira mensagem.
 type CreateConversationInput struct {
 	PersonaID domain.ID
+	// ProjectID é o projeto da conversa (ADR-0090), opcional: as runs herdam o workspace e o ambiente dele quando a
+	// persona não tem os seus.
+	ProjectID *domain.ID
 	Title     string
 	Message   string
 }
@@ -75,7 +78,7 @@ type ChatContext struct {
 }
 
 func conversationFromRow(r store.Conversation) domain.Conversation {
-	return domain.Conversation{ID: r.ID, CompanyID: r.CompanyID, PersonaID: idOrZero(r.PersonaID), Kind: domain.ConversationKind(r.Kind), Title: r.Title,
+	return domain.Conversation{ID: r.ID, CompanyID: r.CompanyID, PersonaID: idOrZero(r.PersonaID), ProjectID: r.ProjectID, Kind: domain.ConversationKind(r.Kind), Title: r.Title,
 		Status: domain.ConversationStatus(r.Status), CreatedBy: actorOf(r.CreatedByType, r.CreatedByID),
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, LastMessageAt: r.LastMessageAt}
 }
@@ -272,8 +275,11 @@ func (s *Service) CreateConversation(ctx context.Context, actor domain.Actor, co
 		if err != nil {
 			return mapErr(err, "get persona")
 		}
+		if err := t.requireProject(companyID, in.ProjectID); err != nil {
+			return err
+		}
 		conv, err := t.q.CreateConversation(ctx, store.CreateConversationParams{ID: domain.NewID(), CompanyID: companyID,
-			PersonaID: &p.ID, Title: title, CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
+			PersonaID: &p.ID, ProjectID: in.ProjectID, Title: title, CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
 		if err != nil {
 			return mapErr(err, "create conversation")
 		}
@@ -293,7 +299,7 @@ func (s *Service) CreateConversation(ctx context.Context, actor domain.Actor, co
 			run = &r
 		}
 		if err := t.activity(actor, companyID, "conversation.created", "conversation", conv.ID,
-			map[string]any{"persona_id": p.ID, "title": title, "kind": domain.ConversationDirect}, ""); err != nil {
+			map[string]any{"persona_id": p.ID, "project_id": in.ProjectID, "title": title, "kind": domain.ConversationDirect}, ""); err != nil {
 			return err
 		}
 		if run != nil {
@@ -558,8 +564,13 @@ func (t *txc) openPersonaRun(conv store.Conversation, personaID domain.ID, cont 
 			return run, gerr, nil
 		}
 	}
-	// A chat has no task or project: it works in the persona's workspace (or a temporary directory).
-	ws, wsSource := pickWorkspace(nil, nil, p)
+	// A chat has no task: it works in the workspace of the conversation's project, else the persona's, else a
+	// temporary directory (ADR-0090; same precedence as a task without a workspace of its own).
+	project, err := t.projectOf(conv.CompanyID, conv.ProjectID)
+	if err != nil {
+		return run, nil, err
+	}
+	ws, wsSource := pickWorkspace(nil, project, p)
 	run, err = t.insertRun(conv.CompanyID, nil, &conv.ID, p.ID, p.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerChat, cont)
 	if err != nil {
 		return run, nil, err

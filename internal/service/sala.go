@@ -81,6 +81,8 @@ type CreateRoomInput struct {
 	MaxHops           int // 0 = padrão (2)
 	MaxRunsPerMessage int // 0 = número de participantes
 	Message           string
+	// ProjectID é o projeto da sala (ADR-0090), opcional: as runs herdam o workspace e o ambiente dele.
+	ProjectID *domain.ID
 }
 
 // RoomSettingsPatch muda a configuração de uma sala; campos nil ficam como estão.
@@ -311,7 +313,10 @@ func (s *Service) CreateRoom(ctx context.Context, actor domain.Actor, companyID 
 				return mapErr(err, "get persona")
 			}
 		}
-		conv, err := t.q.CreateRoom(ctx, store.CreateRoomParams{ID: domain.NewID(), CompanyID: companyID, Title: title,
+		if err := t.requireProject(companyID, in.ProjectID); err != nil {
+			return err
+		}
+		conv, err := t.q.CreateRoom(ctx, store.CreateRoomParams{ID: domain.NewID(), CompanyID: companyID, ProjectID: in.ProjectID, Title: title,
 			CreatedByType: string(actor.Type), CreatedByID: actor.ID, RoomSettings: raw, Now: t.now})
 		if err != nil {
 			return mapErr(err, "create room")

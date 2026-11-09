@@ -80,6 +80,8 @@ func (s *server) modelPicker(ctx context.Context, co domain.Company, id, name, c
 
 func readinessStepLabel(ctx context.Context, name string) string {
 	switch name {
+	case domain.StepSecrets:
+		return i18n.T(ctx, "Segredos referenciados")
 	case domain.StepEnvironment:
 		return i18n.T(ctx, "Ambiente de execução")
 	case domain.StepBinary:

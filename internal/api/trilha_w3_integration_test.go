@@ -28,7 +28,7 @@ func TestAPIOnboardingFlow(t *testing.T) {
 	e.want(422, "POST", b+"/onboarding/probe", `{"agent":"acp"}`, nil)
 	var pr api.OnboardingProbe
 	e.want(200, "POST", b+"/onboarding/probe", `{"agent":"claude","model":"claude-sonnet-4-5"}`, &pr)
-	if pr.Status != "ready" || len(pr.Steps) != 4 {
+	if pr.Status != "ready" || len(pr.Steps) != 5 {
 		t.Fatalf("probe: %+v", pr)
 	}
 	e.want(200, "GET", b+"/onboarding", "", &st)

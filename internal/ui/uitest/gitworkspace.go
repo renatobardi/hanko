@@ -167,6 +167,26 @@ func (f *Fake) RemoveTaskWorktree(_ context.Context, _ domain.Actor, _, taskID d
 	return nil
 }
 
+// PushTaskWorktree marca a branch como enviada no commit atual (ADR-0091).
+func (f *Fake) PushTaskWorktree(_ context.Context, _ domain.Actor, _, taskID domain.ID) (service.PushResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.note("PushTaskWorktree")
+	if err := f.fail("PushTaskWorktree"); err != nil {
+		return service.PushResult{}, err
+	}
+	w := f.Git.Worktrees[taskID]
+	sha := w.HeadSHA
+	if sha == "" {
+		sha = "0123456789abcdef0123456789abcdef01234567"
+	}
+	up := w.PushedSHA == sha
+	now := time.Now()
+	w.PushedSHA, w.PushedAt = sha, &now
+	f.Git.Worktrees[taskID] = w
+	return service.PushResult{Branch: w.Branch, SHA: sha, Commits: 1, UpToDate: up}, nil
+}
+
 func (f *Fake) RequestTaskNewSession(_ context.Context, actor domain.Actor, _, taskID domain.ID, reason string) (domain.TaskSessionReset, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

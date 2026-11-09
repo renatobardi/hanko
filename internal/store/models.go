@@ -498,6 +498,7 @@ type Conversation struct {
 	LastMessageAt time.Time
 	Kind          string
 	RoomSettings  []byte
+	ProjectID     *uuid.UUID
 }
 
 type ConversationClassInput struct {
@@ -2309,6 +2310,8 @@ type TaskWorktree struct {
 	RemovedAt     *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	PushedSha     *string
+	PushedAt      *time.Time
 }
 
 type TeamInstall struct {

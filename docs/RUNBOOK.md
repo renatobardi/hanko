@@ -387,6 +387,10 @@ A imagem de contêiner (distroless) não tem `pg_dump`: lá a tela de Backups fi
 | Agente não enxerga uma variável de ambiente | env filtrado (allowlist) | `HANKO_AGENT_ENV_ALLOW=NOME` (ou `adapter_config.env` numa persona `acp`) |
 | Run `acp` falha com "não respondeu ao initialize" | o comando não fala ACP v1 por stdio (ou demora mais que `init_timeout_sec`) | rode o comando à mão; o erro traz as últimas linhas de stdout/stderr (§ Agentes ACP) |
 | Run `acp` termina em segundos sem editar nada | política `read_only` (padrão) recusou a edição | veja os eventos "permissão negada" no log; contrate com `permission: allow` se for o caso |
+| Persona "não pronta" com `secrets: segredo não resolvido: ${secret:X}` (ou `${secretfile:X}`) | o `adapter_config` da persona cita um segredo que não existe, que ela não alcança (nenhuma coleção com o item foi concedida a ela, ADR-0068) ou cujo campo não cabe no uso | crie ou reponha o segredo (`hanko secret set X`), ou conceda a coleção à persona; "Testar agora" libera o despacho |
+| Persona "não pronta" com `model: claude-haiku é a família de preço, não um modelo` | o modelo da persona é o nome de uma família de `model_prices`, que o harness não aceita em `--model` | troque pelo alias (`haiku`, `sonnet`, `opus`) ou pelo id completo do modelo (`hanko model list --agent claude`) |
+| A persona termina a task mas não consegue abrir o pull request ("preciso de um checkout com permissão de escrita" ou similar) | a branch da task vive no espelho do Hanko e ninguém a enviou ao remoto (ADR-0091) | a persona chama `hanko_git_push` (sem política, a chamada pergunta ao gate na Caixa de entrada; `hanko tool-policy set allow --native hanko_git_push --persona <slug>` libera), ou um membro envia pela aba Git da task ("Enviar branch") ou com `hanko task git push <task>`; a credencial do workspace precisa de escrita no repositório |
+| `hanko task git push` falha com "o remoto recusou a branch" | a branch já existe no remoto com commits que não estão no espelho | sincronize o espelho (`hanko workspace git sync`) e peça à persona para integrar a diferença na branch; o Hanko nunca faz push com força |
 | Run `claude` termina com "tools negadas por permissão: Bash" (ou Edit, Read…) e a persona diz que não consegue executar comandos | persona sem política de tools nativa: o hook não entra e vale o modo headless do claude, que recusa o que não libera sozinho | `hanko tool-policy set allow --persona <slug> --native Bash` (ou aba Política em Integrações); o evento da run traz o comando |
 | Tool de integração falha com `servidor MCP recusou (-32020): header mismatch: missing Mcp-Param-<nome> header` | servidor remoto exige o parâmetro também como cabeçalho (`x-mcp-header` no schema) e o Hanko é anterior a essa regra | atualize o Hanko: o gateway repete o parâmetro como `Mcp-Param-<nome>` a partir do schema; depois `Integrações › Tools › Atualizar catálogo` para o schema entrar |
 | `HANKO_SECRET exige…` / `HANKO_PUBLIC_URL exige https` no boot | modo authenticated sem secret de 32 bytes ou com URL http fora de loopback | `openssl rand -hex 32`; use `https://…` (ou loopback para teste local) |
@@ -504,7 +508,7 @@ Configuração do operador (a empresa não consegue ligar sozinha):
 | `HANKO_INTEGRATIONS_ALLOW_STDIO` | `false` | Libera servidores MCP `stdio`, que executam um comando **na máquina do servidor**. |
 | `HANKO_INTEGRATIONS_ALLOW_PRIVATE` | `false` | Libera webhooks e testes de conexão para loopback, link-local e redes privadas (sem isso, bloqueio SSRF). |
 | `HANKO_SKILL_SOURCES` | `false` | Liga as fontes git de skills (ADR-0035): o servidor clona repositórios públicos por https com o `git` do PATH. Hosts internos só com `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. |
-| `HANKO_GIT_WORKSPACES` | `false` | Liga os workspaces de execução com Git (ADR-0054): o servidor mantém um clone espelho do repositório do workspace em `<HANKO_WORKSPACES_ROOT>/<empresa>/.hanko/mirrors` e cria um worktree por task em `.hanko/worktrees` (git 2.31+ no PATH). A credencial do repositório é um segredo `${secret:NOME}` (ADR-0050). Hosts internos só com `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. O admin liga o Git de cada workspace (`hanko workspace git enable`). |
+| `HANKO_GIT_WORKSPACES` | `false` | Liga os workspaces de execução com Git (ADR-0054): o servidor mantém um clone espelho do repositório do workspace em `<HANKO_WORKSPACES_ROOT>/<empresa>/.hanko/mirrors` e cria um worktree por task em `.hanko/worktrees` (git 2.31+ no PATH). A credencial do repositório é um segredo `${secret:NOME}` (ADR-0050) e precisa de **escrita** no repositório para o envio da branch da task (`hanko task git push`, botão "Enviar branch", tool `hanko_git_push`; ADR-0091). Hosts internos só com `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. O admin liga o Git de cada workspace (`hanko workspace git enable`). |
 
 **Gerar a chave:** `openssl rand -hex 32`. Guarde-a junto com o `HANKO_SECRET` e no backup do operador; perder a chave perde os
 segredos guardados (as integrações ficam, sem credenciais, e é só informá-los de novo).
@@ -661,6 +665,10 @@ hanko chat list --persona cto
 
 - Cada mensagem humana dispara uma **run** com o gatilho `chat`: aparece em Execuções (identificada como Chat, ligada à conversa)
   e em Custos (linha "Chat"), e conta no orçamento da persona e da empresa e na trava semanal da assinatura.
+- **Onde a run roda:** a conversa pode ter um **projeto** (seletor "Projeto (opcional)" no formulário, `"project"` na API,
+  `hanko chat <persona> "…" --project <slug>`; ADR-0090). Com projeto, as runs usam o workspace e o ambiente dele, na mesma
+  precedência das tasks (projeto > persona); sem projeto, o workspace da persona ou um diretório temporário. Um chat sobre o
+  repositório de um projeto só vê os arquivos se a conversa tiver o projeto (ou a persona, o workspace).
 - Persona pausada, em erro, sem orçamento ou com a trava semanal atingida **não recebe a mensagem**: a UI, a API (409) e a CLI mostram o motivo.
   Reative a persona ou suba o limite e envie de novo.
 - Mensagens enviadas enquanto a persona responde esperam (até 20) e a run seguinte as responde juntas. Uma run de chat que falha
@@ -978,10 +986,12 @@ gravável, binários (`tar`, `git`, `claude`, `codex`) e, em alvos remotos com r
 
 ## Prontidão da persona e catálogo de modelos (ADR-0055)
 
-Antes de uma execução falhar por falta de login, o Hanko testa o harness da persona **no ambiente dela**: binário (`claude`, `codex`,
-o comando do ACP), login ou chave de API (`claude auth status`, `codex login status`, credenciais em arquivo ou chave no env) e
-modelo (formato e preço). O teste não chama o modelo: não gasta tokens. Os passos têm nome (`environment`, `binary`, `auth`,
-`model`; `ok`, `warn`, `fail`, `skip`) e ficam em `persona_readiness`.
+Antes de uma execução falhar por falta de login, o Hanko testa o harness da persona **no ambiente dela**: segredos referenciados
+no `adapter_config` (`${secret:}` resolve, `${secretfile:}` existe, a persona alcança o item pelas coleções, o campo cabe no uso),
+binário (`claude`, `codex`, o comando do ACP), login ou chave de API (`claude auth status`, `codex login status`, credenciais em
+arquivo ou chave no env) e modelo (formato, família e preço: `claude-haiku` é família de preço, não modelo; o harness aceita o alias
+`haiku` ou o id completo). O teste não chama o modelo: não gasta tokens. Os passos têm nome (`secrets`, `environment`, `binary`,
+`auth`, `model`; `ok`, `warn`, `fail`, `skip`) e ficam em `persona_readiness`.
 
 - **Quando roda:** "Testar agora" na página da persona (logo depois da contratação a tela já testa), `hanko persona test <persona>` e
   o job periódico `readiness_tick` (até 20 personas por passada: as nunca testadas primeiro, depois as de teste mais velho que

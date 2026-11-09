@@ -120,6 +120,7 @@ func (e *env) chatCmd() *cobra.Command {
 		noWait  bool
 		timeout time.Duration
 		title   string
+		project string
 	)
 	c := &cobra.Command{
 		Use:     "chat " + e.t("<persona> <mensagem>"),
@@ -158,7 +159,7 @@ func (e *env) chatCmd() *cobra.Command {
 				}
 				since = m.ID
 			} else {
-				cv, err := cl.CreateConversation(ctx, co, client.CreateConversationReq{Persona: args[0], Title: title, Message: message})
+				cv, err := cl.CreateConversation(ctx, co, client.CreateConversationReq{Persona: args[0], Project: project, Title: title, Message: message})
 				if err != nil {
 					return err
 				}
@@ -209,6 +210,7 @@ func (e *env) chatCmd() *cobra.Command {
 	f.BoolVar(&noWait, "no-wait", false, e.t("não espera a resposta: imprime o id da conversa e sai"))
 	f.DurationVar(&timeout, "timeout", chatDefaultTimeout, e.t("quanto esperar pela resposta"))
 	f.StringVar(&title, "title", "", e.t("título da nova conversa (padrão: derivado da mensagem)"))
+	f.StringVar(&project, "project", "", e.t("projeto da nova conversa (id ou slug): as execuções usam o workspace e o ambiente dele quando a persona não tem os seus"))
 
 	var q client.ConversationQuery
 	ls := &cobra.Command{

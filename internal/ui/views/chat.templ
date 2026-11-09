@@ -53,6 +53,13 @@ templ ChatsPage(sh Shell, vm ChatsVM) {
 						<label for="c-persona">Persona</label>
 						@Select("persona", "c-persona", vm.Personas, false)
 					</div>
+					if len(vm.Projects) > 1 {
+						<div class="field">
+							<label for="c-project">{ i18n.T(ctx, "Projeto (opcional)") }</label>
+							@Select("project", "c-project", vm.Projects, false)
+							<span class="hint">{ i18n.T(ctx, "A persona trabalha no workspace e no ambiente do projeto quando não tem os seus.") }</span>
+						</div>
+					}
 					<div class="field">
 						<label for="c-msg">{ i18n.T(ctx, "Primeira mensagem") }</label>
 						<textarea class="textarea" id="c-msg" name="message" rows="4" required placeholder={ i18n.T(ctx, "Pergunte ou peça algo à persona. Markdown.") }>{ vm.Message }</textarea>
@@ -204,6 +211,9 @@ templ ChatPage(sh Shell, vm ChatVM) {
 		}
 		<div class="chips mb-4">
 			<a class="chip" href={ templ.SafeURL(vm.PersonaHref) }>@PersonaGlyph(vm.Persona)<span>{ vm.Persona }</span></a>
+			if vm.Project != "" {
+				<a class="chip" href={ templ.SafeURL(vm.ProjectHref) }>@Icon("folder")<span>{ vm.Project }</span></a>
+			}
 			@BadgeEl(vm.Badge)
 			<span class="chip soft">{ vm.Cost }</span>
 		</div>

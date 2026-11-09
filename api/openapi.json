@@ -3476,6 +3476,11 @@
           "persona_slug": {
             "type": "string"
           },
+          "project_id": {
+            "description": "Projeto da conversa (ADR-0090); as execuções herdam o workspace e o ambiente dele quando a persona não tem os seus.",
+            "format": "uuid",
+            "type": "string"
+          },
           "room": {
             "$ref": "#/components/schemas/Room",
             "description": "Configuração e participantes de uma sala."
@@ -4192,6 +4197,13 @@
               "array",
               "null"
             ]
+          },
+          "project": {
+            "description": "Id ou slug do projeto da conversa (opcional): as execuções herdam o workspace e o ambiente dele quando a persona não tem os seus (ADR-0090).",
+            "examples": [
+              "kubo"
+            ],
+            "type": "string"
           },
           "title": {
             "description": "Derivado da primeira mensagem quando omitido.",
@@ -8806,6 +8818,39 @@
         "required": [
           "text",
           "truncated"
+        ],
+        "type": "object"
+      },
+      "GitPush": {
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "commits": {
+            "description": "Commits da branch desde a base.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "committed": {
+            "description": "Alterações soltas no worktree viraram um commit antes do envio.",
+            "type": "boolean"
+          },
+          "sha": {
+            "description": "Commit da branch que está no remoto.",
+            "type": "string"
+          },
+          "up_to_date": {
+            "description": "O remoto já tinha esse commit; nada foi enviado.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "branch",
+          "sha",
+          "commits",
+          "up_to_date",
+          "committed"
         ],
         "type": "object"
       },
@@ -17394,8 +17439,9 @@
             "type": "string"
           },
           "name": {
-            "description": "environment: o ambiente responde; binary: o binário do harness existe; auth: há login ou chave de API; model: o modelo é válido e tem preço.",
+            "description": "secrets: as referências ${secret:}/${secretfile:} do adapter_config existem e a persona as alcança; environment: o ambiente responde; binary: o binário do harness existe; auth: há login ou chave de API; model: o modelo é válido e tem preço.",
             "enum": [
+              "secrets",
               "environment",
               "binary",
               "auth",
@@ -25654,6 +25700,14 @@
           },
           "project_id": {
             "format": "uuid",
+            "type": "string"
+          },
+          "pushed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pushed_sha": {
+            "description": "Último commit da branch enviado ao remoto (ADR-0091); ausente se nunca enviada.",
             "type": "string"
           },
           "removed_at": {
@@ -73017,6 +73071,115 @@
           }
         },
         "summary": "Commits da branch da task desde a base",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/git/push": {
+      "post": {
+        "operationId": "push-task-worktree",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitPush"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Envia a branch do worktree da task ao repositório remoto com a credencial do workspace (membro; ADR-0091). Alterações soltas viram um commit antes.",
         "tags": [
           "tasks"
         ]

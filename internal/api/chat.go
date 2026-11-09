@@ -20,6 +20,7 @@ type Conversation struct {
 	PersonaID       string    `json:"persona_id,omitempty" format:"uuid" doc:"Persona do chat direto; ausente numa sala (veja room.participants)."`
 	PersonaName     string    `json:"persona_name,omitempty"`
 	PersonaSlug     string    `json:"persona_slug,omitempty"`
+	ProjectID       string    `json:"project_id,omitempty" format:"uuid" doc:"Projeto da conversa (ADR-0090); as execuções herdam o workspace e o ambiente dele quando a persona não tem os seus."`
 	Title           string    `json:"title"`
 	Status          string    `json:"status" enum:"open,archived"`
 	CreatedBy       ActorRef  `json:"created_by"`
@@ -51,7 +52,7 @@ type ConversationMessage struct {
 
 func conversationOut(v service.ConversationView) Conversation {
 	return Conversation{ID: idStr(v.ID), CompanyID: idStr(v.CompanyID), Kind: kindOut(v.Kind), PersonaID: zeroIDStr(v.PersonaID), PersonaName: v.PersonaName,
-		PersonaSlug: v.PersonaSlug, Title: v.Title, Status: string(v.Status), CreatedBy: actorRef(v.CreatedBy),
+		PersonaSlug: v.PersonaSlug, ProjectID: idPtr(v.ProjectID), Title: v.Title, Status: string(v.Status), CreatedBy: actorRef(v.CreatedBy),
 		ActiveRunID: idPtr(v.ActiveRunID), PendingMessages: v.PendingMessages, CostUSD: v.CostUSD,
 		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, LastMessageAt: v.LastMessageAt, Room: roomOut(v.Room)}
 }
@@ -80,6 +81,7 @@ type createConversationIn struct {
 	Body struct {
 		Kind    string `json:"kind,omitempty" enum:"direct,room" default:"direct" doc:"direct (padrão) = chat com uma persona; room = sala com várias (ADR-0033)."`
 		Persona string `json:"persona,omitempty" doc:"Chat direto: id ou slug da persona com quem conversar." example:"cto"`
+		Project string `json:"project,omitempty" doc:"Id ou slug do projeto da conversa (opcional): as execuções herdam o workspace e o ambiente dele quando a persona não tem os seus (ADR-0090)." example:"kubo"`
 		Title   string `json:"title,omitempty" maxLength:"200" doc:"Derivado da primeira mensagem quando omitido."`
 		Message string `json:"message,omitempty" maxLength:"20000" doc:"Primeira mensagem (markdown); a persona responde por uma execução."`
 		RoomCreateFields
@@ -138,8 +140,12 @@ func (s *server) registerChat(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
+			project, err := s.projectRef(ctx, sc.Company.ID, in.Body.Project)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			if in.Body.Kind == string(domain.ConversationRoom) {
-				v, err := s.createRoom(ctx, sc.Actor, sc.Company.ID, in.Body.Title, in.Body.Message, in.Body.RoomCreateFields)
+				v, err := s.createRoom(ctx, sc.Actor, sc.Company.ID, in.Body.Title, in.Body.Message, project, in.Body.RoomCreateFields)
 				if err != nil {
 					return nil, s.fail(ctx, err)
 				}
@@ -153,7 +159,7 @@ func (s *server) registerChat(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			v, err := s.svc.CreateConversation(ctx, sc.Actor, sc.Company.ID, service.CreateConversationInput{
-				PersonaID: p.ID, Title: in.Body.Title, Message: in.Body.Message})
+				PersonaID: p.ID, ProjectID: project, Title: in.Body.Title, Message: in.Body.Message})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

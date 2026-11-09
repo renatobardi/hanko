@@ -227,6 +227,15 @@ func TestBuildModelCatalog(t *testing.T) {
 	if _, ok := by["codex/gpt-"]; ok {
 		t.Error("prefixo de família não é modelo selecionável")
 	}
+	if _, ok := by["claude/claude-opus"]; ok {
+		t.Error("família de preço (claude-opus) não é modelo selecionável: o harness aceita o alias opus ou o id completo")
+	}
+	for m, want := range map[string]string{"claude-haiku": "haiku", " Claude-Sonnet ": "sonnet", "claude-haiku-4-5": "", "haiku": "", "gpt-": ""} {
+		alias, ok := ModelFamilyAlias(m)
+		if alias != want || ok != (want != "") {
+			t.Errorf("ModelFamilyAlias(%q) = %q,%v", m, alias, ok)
+		}
+	}
 	if m := by["codex/gpt-5"]; !m.Priced {
 		t.Errorf("gpt-5 vem de model_prices: %+v", m)
 	}

@@ -12,6 +12,7 @@ import (
 // CreateConversationReq abre uma conversa com uma persona (Message é a primeira mensagem).
 type CreateConversationReq struct {
 	Persona string `json:"persona"`
+	Project string `json:"project,omitempty"` // id ou slug do projeto da conversa (ADR-0090), opcional
 	Title   string `json:"title,omitempty"`
 	Message string `json:"message,omitempty"`
 }
