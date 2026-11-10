@@ -223,17 +223,17 @@ selo: `python3 scripts/gen-pwa-icons.py` (Pillow).
 ### 3.1 Produção (`hanko-prd`, oute-server)
 
 **Banco (ADR-0092):** o prd usa o schema `hanko_prd` do Postgres compartilhado do lab (`10.173.117.51:5433`, papel `app_hanko_prd`,
-`search_path` fixo). A `HANKO_DATABASE_URL` fica no `.env` do LXC (vem do cofre, item `hanko-prd HANKO_DATABASE_URL`); o
-`backup.sh` e o `restore.sh` a leem de lá e falam com o banco por um contêiner descartável `postgres:17`
-(`HANKO_PG_CLIENT_IMAGE`), com a conexão só em variáveis `PG*`. Sem a variável, ou com host `postgres`, vale o Postgres
+`search_path` fixo). A `HANKO_DATABASE_URL` fica no `.env` do LXC (vem do cofre, item `hanko-prd HANKO_DATABASE_URL`).
+O banco não é deste LXC, então o backup dele é o do banco compartilhado (ADR-0093): o `backup.sh` e o `restore.sh` daqui
+cuidam só da memória e dos artefatos, sem cliente do Postgres. Sem a variável, ou com host `postgres`, vale o Postgres
 próprio do compose (profile `localdb`) e o comportamento abaixo para banco local.
 
 Duas camadas, que falham de formas diferentes:
 
 | Camada | O quê | Quando | Onde |
 |---|---|---|---|
-| Local (LXC) | `deploy/oute-server/backup.sh`: `pg_dump -Fc` do schema `hanko_prd` (banco local: do banco `hanko`) + tar do volume do ai-memory (container pausado durante o tar, para o índice SQLite sair consistente) | diário ~01:30 UTC (timer `hanko-backup`, instalado pelo `deploy-prd.sh`) | `/var/backups/hanko` no LXC, 3 gerações + `SHA256SUMS` |
-| Lab (restic) | o diretório acima (`backup_paths`); o schema também vai no `pg_dump` semanal do Postgres compartilhado do lab | semanal, sábado 02:00 (`oute-backup-weekly`) | restic em `/var/backups/restic-oute` no host + sync offsite; alerta no Kuma |
+| Local (LXC) | `deploy/oute-server/backup.sh`: tar do volume do ai-memory e dos artefatos (com banco local, também o `pg_dump -Fc` do banco `hanko`); o ai-memory com o container pausado durante o tar, para o índice SQLite sair consistente | diário ~01:30 UTC (timer `hanko-backup`, instalado pelo `deploy-prd.sh`) | `/var/backups/hanko` no LXC, 3 gerações + `SHA256SUMS` |
+| Lab (restic) | o diretório acima (`backup_paths`); o banco vai no `pg_dump` semanal do Postgres compartilhado do lab | semanal, sábado 02:00 (`oute-backup-weekly`) | restic em `/var/backups/restic-oute` no host + sync offsite; alerta no Kuma |
 
 O timer roda antes do sábado 02:00, então o restic leva uma cópia local fresca. O `agent-home` (login do claude/codex) e o
 `lgtm` (telemetria) **não** entram no backup: login se refaz (§ "Login do Claude" ao fim do deploy) e a telemetria é descartável.
@@ -248,18 +248,17 @@ ssh oute-server "lxc exec hanko-prd -- bash -lc 'systemctl start hanko-backup.se
 ```
 
 **Drill mensal (não toca no prd):** banco local: restaura o dump mais novo num banco descartável `hanko_restore_check`, imprime o
-nº de tabelas e a última migration aplicada, e apaga o banco. Banco externo: não há banco descartável; confere que o dump é
-legível, só tem o schema corrente e que os tars abrem.
+nº de tabelas e a última migration aplicada, e apaga o banco. Banco externo: confere só os tars da memória e dos artefatos
+(o drill do banco é o do banco compartilhado).
 
 ```bash
 ssh oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --check"
 # saída esperada: tabelas=<N> / migration=<versão> / "drill ok (prd intocado)"
 ```
 
-**Restore com banco externo:** para o hanko e o ai-memory, grava o estado atual em `/var/backups/hanko/pre-restore-<ts>.pgdump`,
-esvazia o schema `hanko_prd` (sem apagá-lo: o papel não pode recriar schema) e restaura o dump nele em **uma** transação; falhou,
-nada muda e a stack volta. Dump de outro schema (por exemplo um `hanko-*.pgdump` antigo, do banco local) é recusado: para mudar
-de banco use a ferramenta de migração do banco compartilhado (`ops/migrate_pg_schema.sh`, no repo dele). Mesmo comando abaixo.
+**Restore com banco externo:** o `restore.sh --apply` para o hanko e o ai-memory, repõe só a memória e os artefatos e sobe a
+stack; `--pgdump` é recusado. O banco volta pelo backup do banco compartilhado (runbook de backup e restore no repo dele): o
+dump semanal tem o banco inteiro, e `pg_restore -n hanko_prd` extrai só o schema do Hanko.
 
 **Restore a partir da cópia local (banco local, mesmo LXC):** para o hanko e o ai-memory, renomeia o banco atual para `hanko_pre_restore_<ts>`
 (nunca o dropa), restaura o dump num banco novo `hanko`, repõe o volume do ai-memory, sobe a stack e espera o `/readyz`. Se o

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Backup do Hanko em produção (roda DENTRO do LXC hanko-prd, como root, pelo timer hanko-backup).
 # Gera, em HANKO_BACKUP_DIR (padrão /var/backups/hanko, modo 0700), um par consistente:
-#   hanko-<UTC>.pgdump         pg_dump -Fc do banco (snapshot transacional; conferido com pg_restore -l). Com banco
-#                              externo (ADR-0092), só o schema corrente do papel do Hanko (prd: hanko_prd)
+#   hanko-<UTC>.pgdump         pg_dump -Fc do banco (snapshot transacional; conferido com pg_restore -l). Só com o
+#                              Postgres próprio: com banco externo (prd, ADR-0093) o dump é o do backup do banco
+#                              compartilhado, e esta geração leva só memória e artefatos
 #   aimemory-<UTC>.tar.gz      volume do ai-memory (wiki git + índice SQLite) com o container pausado
 #   blobs-<UTC>.tar            conteúdo dos artefatos no disco (driver fs, ADR-0065), depois do dump: todo arquivo que
 #                              o dump referencia já está gravado (o conteúdo sobe antes da transação do artefato)
@@ -39,18 +40,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# 1) Postgres: dump em formato custom (o mesmo que o lab faz; esta cópia é a local/rápida). Banco externo: só o schema
-#    corrente, pelo contêiner descartável do cliente (o papel não enxerga o resto do banco compartilhado).
+# 1) Postgres: dump em formato custom (o mesmo que o lab faz; esta cópia é a local/rápida). Banco externo (ADR-0093):
+#    nada aqui; o banco é coberto pelo backup do banco compartilhado.
 if [[ "$PG_MODE" == external ]]; then
-  log "pg_dump do schema ${PG_SCHEMA} em ${PGHOST}:${PGPORT}/${PGDATABASE}"
-  pgc pg_dump -Fc --no-owner --no-acl --lock-wait-timeout=60000 --schema="$PG_SCHEMA" < /dev/null > "${tmp}/hanko.pgdump"
+  log "banco externo: sem dump aqui (coberto pelo backup do banco compartilhado); só memória e artefatos"
 else
   log "pg_dump ${PG_DB}"
   pgc pg_dump -Fc --no-owner --no-acl "$PG_DB" < /dev/null > "${tmp}/hanko.pgdump"
+  [[ -s "${tmp}/hanko.pgdump" ]] || { log "ERRO: dump vazio"; exit 1; }
+  pg_list="$(pgc pg_restore -l < "${tmp}/hanko.pgdump" | wc -l)"
+  (( pg_list > 10 )) || { log "ERRO: dump ilegível (pg_restore -l = ${pg_list} linhas)"; exit 1; }
 fi
-[[ -s "${tmp}/hanko.pgdump" ]] || { log "ERRO: dump vazio"; exit 1; }
-pg_list="$(pgc pg_restore -l < "${tmp}/hanko.pgdump" | wc -l)"
-(( pg_list > 10 )) || { log "ERRO: dump ilegível (pg_restore -l = ${pg_list} linhas)"; exit 1; }
 
 # 2) ai-memory: pausa o container (congela cgroup, sem perder conexões) enquanto o volume é arquivado,
 #    senão o índice SQLite pode sair com páginas de momentos diferentes. Sem o profile `memory`, pula.
@@ -81,7 +81,7 @@ else
 fi
 
 # 4) Publica atomicamente (mv no mesmo filesystem), poda e recalcula as somas
-mv "${tmp}/hanko.pgdump" "${OUT}/hanko-${TS}.pgdump"
+[[ ! -f "${tmp}/hanko.pgdump" ]] || mv "${tmp}/hanko.pgdump" "${OUT}/hanko-${TS}.pgdump"
 [[ ! -f "${tmp}/aimemory.tar.gz" ]] || mv "${tmp}/aimemory.tar.gz" "${OUT}/aimemory-${TS}.tar.gz"
 [[ ! -f "${tmp}/blobs.tar" ]] || mv "${tmp}/blobs.tar" "${OUT}/blobs-${TS}.tar"
 for prefix in hanko aimemory blobs; do
@@ -90,5 +90,7 @@ for prefix in hanko aimemory blobs; do
   { ls -1 "${OUT}/${prefix}-"*.* 2>/dev/null || true; } | sort -r | tail -n +$((KEEP + 1)) | xargs -r rm -f --
 done
 # nullglob: padrão sem arquivo some em vez de virar texto literal (senão o sha256sum falha e o mv nunca roda)
-( shopt -s nullglob; cd "$OUT" && sha256sum hanko-*.pgdump aimemory-*.tar.gz blobs-*.tar > SHA256SUMS.new && mv SHA256SUMS.new SHA256SUMS )
+# sem nenhum arquivo, o sha256sum sem argumentos leria o stdin (e travaria fora do timer): só soma o que existe
+( shopt -s nullglob; cd "$OUT" && f=(hanko-*.pgdump aimemory-*.tar.gz blobs-*.tar)
+  if (( ${#f[@]} )); then sha256sum "${f[@]}" > SHA256SUMS.new && mv SHA256SUMS.new SHA256SUMS; else rm -f SHA256SUMS; fi )
 log "ok: $(ls -1 "$OUT" | tr '\n' ' ')"

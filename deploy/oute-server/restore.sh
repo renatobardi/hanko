@@ -5,9 +5,8 @@
 #   restore.sh --apply [--pgdump ARQ] [--aimemory ARQ] [--blobs ARQ] [--yes]
 #                                                restaura o dump num banco novo `hanko` (o atual vira hanko_pre_restore_<ts>,
 #                                                nunca é dropado), substitui o volume do ai-memory e repõe os artefatos em disco
-# Banco externo (HANKO_DATABASE_URL no .env fora do compose, ADR-0092): o --check só confere o dump (não há banco
-# descartável) e o --apply esvazia o schema corrente e restaura nele em UMA transação, depois de guardar um dump do
-# estado atual em pre-restore-<ts>.pgdump; dump de outro schema é recusado.
+# Banco externo (HANKO_DATABASE_URL no .env fora do compose, ADR-0093): o banco se restaura pelo backup do banco
+# compartilhado (docs/RUNBOOK.md); aqui o --check confere e o --apply repõe só a memória e os artefatos (--pgdump recusado).
 # Sem --pgdump/--aimemory/--blobs usa os arquivos mais novos de HANKO_BACKUP_DIR (/var/backups/hanko).
 # Para trazer de fora (backup do lab), veja docs/RUNBOOK.md: extraia o arquivo e passe o caminho aqui.
 # --apply para o hanko e o ai-memory, e sobe de novo ao final. Migrations são append-only: restaurar um
@@ -39,23 +38,22 @@ psql_() { compose exec -T postgres psql -U "$PG_USER" -v ON_ERROR_STOP=1 -X -q "
 . "$(dirname "${BASH_SOURCE[0]}")/pglib.sh"
 pg_mode_init
 
-[[ -n "$PGDUMP" ]] || PGDUMP="$(newest hanko)"
-[[ -f "$PGDUMP" ]] || { echo "erro: sem dump do Postgres (use --pgdump ARQ)" >&2; exit 1; }
-if [[ -z "$AIMEM" ]]; then AIMEM="$(newest aimemory)"; fi
-if [[ -z "$BLOBS" ]]; then BLOBS="$(newest blobs)"; fi
-log "dump: ${PGDUMP}; memória: ${AIMEM:-<nenhuma>}; artefatos: ${BLOBS:-<nenhum>}"
-pgc pg_restore -l < "$PGDUMP" >/dev/null || { echo "erro: dump ilegível" >&2; exit 1; }
 if [[ "$PG_MODE" == external ]]; then
-  outside="$(pgc pg_restore -l < "$PGDUMP" | pg_dump_tables_outside "$PG_SCHEMA" | head -5)"
-  [[ -z "$outside" ]] || { echo "erro: o dump tem tabelas fora do schema ${PG_SCHEMA} (${outside//$'\n'/ }); dump de outro schema não se restaura aqui: use a ferramenta de migração do banco compartilhado (ops/migrate_pg_schema.sh)" >&2; exit 1; }
-fi
-
-if [[ "$MODE" == check && "$PG_MODE" == external ]]; then
-  log "banco externo: sem banco descartável; dump legível e só do schema ${PG_SCHEMA}"
-  if [[ -n "$AIMEM" ]]; then tar tzf "$AIMEM" >/dev/null && log "tar da memória legível"; fi
-  if [[ -n "$BLOBS" ]]; then tar tf "$BLOBS" >/dev/null && log "tar dos artefatos legível"; fi
-  log "drill ok (prd intocado)"
-  exit 0
+  [[ -z "$PGDUMP" ]] || { echo "erro: banco externo (ADR-0093): o banco se restaura pelo backup do banco compartilhado (docs/RUNBOOK.md); aqui só memória e artefatos" >&2; exit 1; }
+  if [[ -z "$AIMEM" ]]; then AIMEM="$(newest aimemory)"; fi
+  if [[ -z "$BLOBS" ]]; then BLOBS="$(newest blobs)"; fi
+  [[ -n "${AIMEM}${BLOBS}" ]] || { echo "erro: sem tar da memória nem dos artefatos em ${DIR}" >&2; exit 1; }
+  log "banco externo: só memória (${AIMEM:-<nenhuma>}) e artefatos (${BLOBS:-<nenhum>})"
+  if [[ -n "$AIMEM" ]]; then tar tzf "$AIMEM" >/dev/null || { echo "erro: tar da memória ilegível" >&2; exit 1; }; log "tar da memória legível"; fi
+  if [[ -n "$BLOBS" ]]; then tar tf "$BLOBS" >/dev/null || { echo "erro: tar dos artefatos ilegível" >&2; exit 1; }; log "tar dos artefatos legível"; fi
+  if [[ "$MODE" == check ]]; then log "drill ok (prd intocado)"; exit 0; fi
+else
+  [[ -n "$PGDUMP" ]] || PGDUMP="$(newest hanko)"
+  [[ -f "$PGDUMP" ]] || { echo "erro: sem dump do Postgres (use --pgdump ARQ)" >&2; exit 1; }
+  if [[ -z "$AIMEM" ]]; then AIMEM="$(newest aimemory)"; fi
+  if [[ -z "$BLOBS" ]]; then BLOBS="$(newest blobs)"; fi
+  log "dump: ${PGDUMP}; memória: ${AIMEM:-<nenhuma>}; artefatos: ${BLOBS:-<nenhum>}"
+  pgc pg_restore -l < "$PGDUMP" >/dev/null || { echo "erro: dump ilegível" >&2; exit 1; }
 fi
 
 if [[ "$MODE" == check ]]; then
@@ -73,8 +71,8 @@ if [[ "$MODE" == check ]]; then
 fi
 
 if ! $YES; then
-  if [[ "$PG_MODE" == external ]]; then what="o schema ${PG_SCHEMA} em ${PGHOST}"; else what="o banco ${PG_DB}"; fi
-  read -r -p "Substituir ${what} e o volume do ${MEM_SERVICE} deste LXC? digite 'sim': " ans
+  if [[ "$PG_MODE" == external ]]; then what="o volume do ${MEM_SERVICE} e os artefatos"; else what="o banco ${PG_DB} e o volume do ${MEM_SERVICE}"; fi
+  read -r -p "Substituir ${what} deste LXC? digite 'sim': " ans
   [[ "$ans" == sim ]] || { echo "abortado"; exit 1; }
 fi
 
@@ -118,46 +116,26 @@ wait_ready() {
   return 1
 }
 
-# Banco externo: não há como criar nem renomear banco ou schema. Guarda um dump do estado atual, esvazia o schema e
-# restaura nele numa única transação (falhou = nada mudou, e a stack volta como estava).
+# Banco externo: só memória e artefatos; o banco não é tocado. Falhou: a stack volta.
 if [[ "$PG_MODE" == external ]]; then
-  TS="$(date -u +%Y%m%d%H%M%S)"
-  work="$(mktemp -d "${DIR}/.restore.XXXXXX")"
-  applied=false
   rollback_ext() {
     local rc=$?
     trap - EXIT
-    rm -rf "$work"
     [[ $rc -eq 0 ]] && return 0
-    if $applied; then
-      log "FALHA (código ${rc}) depois de restaurar o schema: a stack NÃO foi subida; estado anterior em ${DIR}/pre-restore-${TS}.pgdump"
-    else
-      log "FALHA (código ${rc}): o schema ${PG_SCHEMA} não foi alterado; subindo a stack"
-      compose up -d || log "ERRO: não consegui subir a stack; rode 'docker compose up -d' em ${APP_DIR}"
-    fi
+    log "FALHA (código ${rc}): subindo a stack"
+    compose up -d || log "ERRO: não consegui subir a stack; rode 'docker compose up -d' em ${APP_DIR}"
     exit "$rc"
   }
   trap rollback_ext EXIT
   log "parando hanko e ${MEM_SERVICE}"
   compose stop hanko "$MEM_SERVICE" >/dev/null 2>&1 || compose stop hanko
-  log "guardando o estado atual em ${DIR}/pre-restore-${TS}.pgdump"
-  pgc pg_dump -Fc --no-owner --no-acl --schema="$PG_SCHEMA" < /dev/null > "${DIR}/pre-restore-${TS}.pgdump"
-  [[ -s "${DIR}/pre-restore-${TS}.pgdump" ]] || { log "ERRO: dump do estado atual vazio"; exit 1; }
-  cp "$PGDUMP" "${work}/db.pgdump"
-  pgc pg_restore -l < "$PGDUMP" | awk '$1 ~ /^;/ || !(($4 == "SCHEMA" && $5 == "-") || ($4 == "COMMENT" && $5 == "-" && $6 == "SCHEMA"))' > "${work}/restore.list"
-  pg_clear_schema_sql "$PG_SCHEMA" > "${work}/restore.sql"
-  chmod 755 "$work"; chmod 644 "${work}"/*   # o cliente no contêiner pode rodar com outro uid
-  PG_MOUNT="$work" pgc pg_restore --no-owner --no-acl --use-list=/w/restore.list --file=- /w/db.pgdump < /dev/null >> "${work}/restore.sql"
-  log "aplicando o restore em ${PG_SCHEMA} (uma transação)"
-  PG_MOUNT="$work" pgc psql -X -q -o /dev/null --single-transaction -v ON_ERROR_STOP=1 -f /w/restore.sql < /dev/null
-  applied=true
   restore_files
   log "subindo a stack"
   compose up -d
   if wait_ready; then
-    log "readyz ok; estado anterior em ${DIR}/pre-restore-${TS}.pgdump (apague quando confirmar)"
+    log "readyz ok"
   else
-    log "AVISO: readyz não respondeu em ${READYZ_WAIT}s (${READYZ_URL}); confira os logs. Estado anterior em ${DIR}/pre-restore-${TS}.pgdump"
+    log "AVISO: readyz não respondeu em ${READYZ_WAIT}s (${READYZ_URL}); confira os logs"
     exit 1
   fi
   exit 0

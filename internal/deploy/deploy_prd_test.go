@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/renatobardi/hanko/internal/backup"
 )
 
 // preDeployBackupLine devolve o comando x "…" do deploy-prd.sh que decide se há banco no ar.
@@ -185,17 +183,6 @@ func TestDeployPrdVhostFitsTheUploadBudget(t *testing.T) {
 		if !strings.Contains(s, want) {
 			t.Errorf("vhost sem %q", want)
 		}
-	}
-}
-
-// O restore.sh do prd e o restore interno esvaziam o schema com o mesmo SQL (ADR-0092).
-func TestClearSchemaSQLMatchesTheRestoreScript(t *testing.T) {
-	b, err := os.ReadFile("../../deploy/oute-server/clear-schema.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(b) != backup.ClearSchemaTemplate {
-		t.Fatal("deploy/oute-server/clear-schema.sql difere de backup.ClearSchemaTemplate; copie o texto do Go para o arquivo")
 	}
 }
 
