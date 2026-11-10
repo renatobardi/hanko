@@ -155,7 +155,7 @@ else
 fi
 
 # 4) Sobe e valida. Antes, um backup consistente (pg_dump -Fc + ai-memory em /var/backups/hanko). Banco externo (ADR-0092):
-#    sempre (o backup.sh fala com ele por um contêiner descartável do cliente). Postgres próprio: só se já há banco no ar
+#    sempre (memória e artefatos; o banco é coberto pelo backup do banco compartilhado, ADR-0093). Postgres próprio: só se já há banco no ar
 #    (falha do `compose ps` aborta; lista vazia = primeira instalação).
 #    a versão nova pode trazer migrations; voltar é `deploy/oute-server/restore.sh --apply` com esse dump.
 x "set -e; url=\$(sed -n 's/^HANKO_DATABASE_URL=//p' \${HANKO_APP_DIR:-/opt/app}/.env 2>/dev/null | tail -1); case \"\$url\" in ''|*@postgres:*|*@postgres/*) ids=\$(docker compose -f /opt/app/docker-compose.yml ps -q postgres) || { echo 'erro: docker compose ps falhou; abortando antes do deploy (sem como saber se há banco no ar)' >&2; exit 1; }; if [ -n \"\$ids\" ]; then bash /opt/app/deploy/oute-server/backup.sh && echo 'backup pré-deploy ok'; else echo 'sem banco no ar: primeira instalação, sem backup pré-deploy'; fi ;; *) bash /opt/app/deploy/oute-server/backup.sh && echo 'backup pré-deploy ok (banco externo)' ;; esac"
@@ -175,7 +175,7 @@ x "docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko update --ch
 
 # 4b) Backup: timer systemd DENTRO do LXC (diário 01:30 UTC) roda deploy/oute-server/backup.sh → /var/backups/hanko
 #     (pg_dump -Fc + tar do ai-memory com o container pausado). O restic semanal do lab coleta esse diretório
-#     (com banco externo, o schema também vai no dump semanal do Postgres compartilhado do lab). Idempotente: reescreve as units e reativa.
+#     (com banco externo, o banco vai no dump semanal do Postgres compartilhado do lab). Idempotente: reescreve as units e reativa.
 # As units saem de `hanko service print` (mesmo gerador testado do `hanko service install`), não de heredocs aqui.
 # O binário é o do PATH: a imagem do prd (Dockerfile.agents) o instala em /usr/local/bin, não em /hanko.
 # Cada unit é gerada num .tmp e só substitui a atual se saiu inteira: uma falha não deixa unit vazia no lugar.

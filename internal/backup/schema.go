@@ -43,12 +43,11 @@ func (m *Manager) currentSchema(ctx context.Context, env []string) (string, erro
 // clearSchemaSQL apaga todo objeto do schema sem apagar o schema: o papel do Hanko num banco compartilhado é dono do
 // schema mas não pode recriá-lo. Roda na mesma transação do restore.
 func clearSchemaSQL(schema string) string {
-	return strings.ReplaceAll(ClearSchemaTemplate, "__SCHEMA__", schema)
+	return strings.ReplaceAll(clearSchemaTemplate, "__SCHEMA__", schema)
 }
 
-// ClearSchemaTemplate é o SQL de clearSchemaSQL com o schema em __SCHEMA__. O restore.sh do prd usa uma cópia em
-// deploy/oute-server/clear-schema.sql; internal/deploy confere que as duas são iguais.
-const ClearSchemaTemplate = `DO $hanko_clear$
+// clearSchemaTemplate é o SQL de clearSchemaSQL com o schema em __SCHEMA__.
+const clearSchemaTemplate = `DO $hanko_clear$
 DECLARE
   s text := '__SCHEMA__';
   r record;

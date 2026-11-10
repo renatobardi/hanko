@@ -4,10 +4,8 @@ package deploy
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,42 +13,15 @@ import (
 	"testing"
 )
 
-// Banco externo (ADR-0092): o backup.sh e o restore.sh leem a HANKO_DATABASE_URL do .env, falam com o banco por um
-// cliente descartável (aqui, o docker falso roda o binário local) e só tocam no schema corrente da conexão.
-func TestBackupAndRestoreWithExternalSchema(t *testing.T) {
-	base := os.Getenv("HANKO_TEST_DATABASE_URL")
-	if base == "" {
-		t.Skip("HANKO_TEST_DATABASE_URL não definido")
-	}
-	u, err := url.Parse(base)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dsnFor := func(db string) string { c := *u; c.Path = "/" + db; return c.String() }
-	admin := dsnFor("postgres")
-	requirePGClient(t, admin)
-
-	const db, schema = "hanko_ext", "hanko_ext_prd"
-	psql(t, admin, "", fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", db))
-	psql(t, admin, "", "CREATE DATABASE "+db)
-	t.Cleanup(func() { psql(t, admin, "", fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", db)) })
-	// o schema corrente vem do search_path fixado no banco (no Postgres compartilhado do lab, no papel)
-	psql(t, dsnFor(db), db, "CREATE SCHEMA "+schema)
-	psql(t, admin, "", fmt.Sprintf("ALTER DATABASE %s SET search_path = %s", db, schema))
-	psql(t, dsnFor(db), db, "CREATE TABLE public.vizinho(x int)") // de outro projeto: nunca entra no dump nem é tocado
-	psql(t, dsnFor(db), db, "INSERT INTO public.vizinho VALUES (7)")
-	psql(t, dsnFor(db), db, "CREATE TYPE estado AS ENUM ('a', 'b')")
-	psql(t, dsnFor(db), db, "CREATE TABLE company(id int primary key, e estado)")
-	psql(t, dsnFor(db), db, "INSERT INTO company VALUES (1, 'a'), (2, 'b')")
-	for i := 0; i < 11; i++ { // o backup.sh recusa dump com menos de 11 linhas no pg_restore -l
-		psql(t, dsnFor(db), db, fmt.Sprintf("CREATE TABLE t%d(x int)", i))
-	}
-
+// Banco externo (ADR-0093): o backup.sh e o restore.sh não tocam no banco (ele é coberto pelo backup do banco
+// compartilhado) e não precisam de cliente do Postgres; ficam só memória e artefatos. O restore recusa --pgdump.
+func TestBackupAndRestoreWithExternalDatabase(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "docker"), []byte(fakeDocker), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("HANKO_DATABASE_URL="+dsnFor(db)+"\n"), 0o600); err != nil {
+	// a URL nunca é usada: o modo externo não conecta
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("HANKO_DATABASE_URL=postgresql://app_x:s3nha@10.0.0.9:5433/postgres\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -64,59 +35,66 @@ func TestBackupAndRestoreWithExternalSchema(t *testing.T) {
 	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
 
 	bk := filepath.Join(dir, "bk")
-	run := func(t *testing.T, script string, args ...string) string {
+	fakeLog := filepath.Join(dir, "fake.log")
+	run := func(t *testing.T, script string, args ...string) (string, error) {
 		t.Helper()
 		path, err := filepath.Abs("../../deploy/oute-server/" + script)
 		if err != nil {
 			t.Fatal(err)
 		}
 		cmd := exec.Command("bash", append([]string{path}, args...)...)
-		cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "FAKE_LOG="+filepath.Join(dir, "fake.log"),
+		cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "FAKE_LOG="+fakeLog,
 			"HANKO_APP_DIR="+dir, "HANKO_BACKUP_DIR="+bk,
 			"HANKO_READYZ_URL=http://"+ln.Addr().String()+"/readyz", "HANKO_READYZ_WAIT=4")
 		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("%s %v: %v\n%s", script, args, err, out)
-		}
-		if pw, _ := u.User.Password(); pw != "" && strings.Contains(string(out), pw) {
+		if strings.Contains(string(out), "s3nha") {
 			t.Fatalf("%s mostrou a senha do banco:\n%s", script, out)
 		}
-		return string(out)
+		return string(out), err
 	}
 
-	out := run(t, "backup.sh")
-	if !strings.Contains(out, "schema "+schema) {
-		t.Fatalf("backup sem o schema:\n%s", out)
+	out, err := run(t, "backup.sh")
+	if err != nil || !strings.Contains(out, "banco externo: sem dump aqui") {
+		t.Fatalf("backup.sh: %v\n%s", err, out)
 	}
-	dumps, _ := filepath.Glob(filepath.Join(bk, "hanko-*.pgdump"))
-	if len(dumps) != 1 {
-		t.Fatalf("dumps = %v", dumps)
+	if dumps, _ := filepath.Glob(filepath.Join(bk, "hanko-*.pgdump")); len(dumps) != 0 {
+		t.Fatalf("banco externo não gera dump: %v", dumps)
 	}
-	list, err := exec.Command("pg_restore", "-l", dumps[0]).Output()
+
+	// sem memória nem artefatos (o docker falso não tem contêineres), o restore não tem o que repor
+	if out, err := run(t, "restore.sh", "--check"); err == nil || !strings.Contains(out, "sem tar da memória nem dos artefatos") {
+		t.Fatalf("check sem arquivos devia falhar: %v\n%s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(bk, "blobs-20260101T000000Z.tar"), tarOf(t), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(t, "restore.sh", "--check"); err != nil || !strings.Contains(out, "drill ok") {
+		t.Fatalf("check: %v\n%s", err, out)
+	}
+	if out, err := run(t, "restore.sh", "--apply", "--yes", "--pgdump", filepath.Join(bk, "x.pgdump")); err == nil || !strings.Contains(out, "banco compartilhado") {
+		t.Fatalf("--pgdump com banco externo devia ser recusado: %v\n%s", err, out)
+	}
+	_ = os.Remove(fakeLog)
+	out, err = run(t, "restore.sh", "--apply", "--yes")
+	if err != nil || !strings.Contains(out, "readyz ok") {
+		t.Fatalf("apply: %v\n%s", err, out)
+	}
+	l, _ := os.ReadFile(fakeLog)
+	if !strings.Contains(string(l), "stop hanko") || !strings.Contains(string(l), "up -d") {
+		t.Fatalf("o apply devia parar e subir a stack: %q", l)
+	}
+}
+
+// tarOf devolve um tar válido com um arquivo.
+func tarOf(t *testing.T) []byte {
+	t.Helper()
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "a"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("tar", "cf", "-", "-C", src, ".").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(list), "vizinho") || !strings.Contains(string(list), "TABLE "+schema+" company") {
-		t.Fatalf("dump fora do schema:\n%s", list)
-	}
-
-	if out := run(t, "restore.sh", "--check"); !strings.Contains(out, "drill ok") {
-		t.Fatalf("check:\n%s", out)
-	}
-
-	// estragos depois do backup: o restore devolve o schema ao estado do dump e não toca no vizinho
-	psql(t, dsnFor(db), db, "DELETE FROM company WHERE id = 2")
-	psql(t, dsnFor(db), db, "DROP TABLE t3")
-	psql(t, dsnFor(db), db, "CREATE TABLE sobra(x int)")
-	out = run(t, "restore.sh", "--apply", "--yes", "--pgdump", dumps[0])
-	if !strings.Contains(out, "readyz ok") {
-		t.Fatalf("restore:\n%s", out)
-	}
-	got := psql(t, dsnFor(db), db, "select (select count(*) from company)||','||(to_regclass('t3') is not null)||','||(to_regclass('sobra') is null)||','||(select x from public.vizinho)")
-	if got != "2,true,true,7" {
-		t.Fatalf("estado depois do restore = %q\n%s", got, out)
-	}
-	if pre, _ := filepath.Glob(filepath.Join(bk, "pre-restore-*.pgdump")); len(pre) != 1 {
-		t.Fatalf("faltou o dump do estado anterior: %v", pre)
-	}
+	return out
 }
