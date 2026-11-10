@@ -34,7 +34,7 @@ func TestBackupAndRestoreWithExternalSchema(t *testing.T) {
 	psql(t, admin, "", fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", db))
 	psql(t, admin, "", "CREATE DATABASE "+db)
 	t.Cleanup(func() { psql(t, admin, "", fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", db)) })
-	// o schema corrente vem do search_path fixado no banco (no oute-supabase-db, no papel)
+	// o schema corrente vem do search_path fixado no banco (no Postgres compartilhado do lab, no papel)
 	psql(t, dsnFor(db), db, "CREATE SCHEMA "+schema)
 	psql(t, admin, "", fmt.Sprintf("ALTER DATABASE %s SET search_path = %s", db, schema))
 	psql(t, dsnFor(db), db, "CREATE TABLE public.vizinho(x int)") // de outro projeto: nunca entra no dump nem é tocado
