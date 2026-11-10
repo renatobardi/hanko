@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/renatobardi/hanko/internal/backup"
 )
 
 // preDeployBackupLine devolve o comando x "…" do deploy-prd.sh que decide se há banco no ar.
@@ -24,17 +26,21 @@ func preDeployBackupLine(t *testing.T) string {
 	return ""
 }
 
-// Erro do `docker compose ps` aborta o deploy; lista vazia é primeira instalação; com banco, faz backup.
+// Erro do `docker compose ps` aborta o deploy; lista vazia é primeira instalação; com banco, faz backup. Com banco
+// externo no .env (ADR-0092) o backup roda sempre, sem perguntar ao compose pelo serviço postgres.
 func TestDeployPrdPreBackupDistinguishesPsFailure(t *testing.T) {
 	line := preDeployBackupLine(t)
+	const external = "HANKO_DATABASE_URL=postgres://app_hanko_prd:x@10.173.117.51:5433/postgres\n"
+	const local = "HANKO_DATABASE_URL=postgres://hanko:x@postgres:5432/hanko?sslmode=disable\n"
 	cases := []struct {
-		name, dockerBody string
-		wantFail         bool
-		want             string
+		name, dockerBody, env string
+		wantFail              bool
+		want                  string
 	}{
-		{"ps falha", "exit 1", true, "docker compose ps falhou"},
-		{"lista vazia", "exit 0", false, "primeira instalação"},
-		{"banco no ar", "echo abc123", false, "backup.sh"}, // o backup.sh real não existe no sandbox: basta ter sido chamado
+		{"ps falha", "exit 1", "", true, "docker compose ps falhou"},
+		{"lista vazia", "exit 0", "", false, "primeira instalação"},
+		{"banco no ar", "echo abc123", local, false, "backup.sh"}, // o backup.sh real não existe no sandbox: basta ter sido chamado
+		{"banco externo", "echo 'não devia perguntar ao compose' >&2; exit 1", external, false, "backup.sh"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -43,15 +49,23 @@ func TestDeployPrdPreBackupDistinguishesPsFailure(t *testing.T) {
 			if err := os.WriteFile(docker, []byte("#!/bin/bash\n"+c.dockerBody+"\n"), 0o755); err != nil {
 				t.Fatal(err)
 			}
+			if c.env != "" {
+				if err := os.WriteFile(filepath.Join(dir, ".env"), []byte(c.env), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
 			script := "x() { bash -c \"$*\"; }\n" + line + "\n"
 			cmd := exec.Command("bash", "-c", script)
-			cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
+			cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "HANKO_APP_DIR="+dir)
 			out, err := cmd.CombinedOutput()
 			if c.wantFail && err == nil {
 				t.Fatalf("deveria abortar: %s", out)
 			}
 			if !strings.Contains(string(out), c.want) {
 				t.Fatalf("saída sem %q: %s", c.want, out)
+			}
+			if strings.Contains(string(out), "não devia perguntar") {
+				t.Fatalf("banco externo consultou o compose: %s", out)
 			}
 			if c.name == "lista vazia" && err != nil {
 				t.Fatalf("primeira instalação não pode falhar: %v %s", err, out)
@@ -170,6 +184,42 @@ func TestDeployPrdVhostFitsTheUploadBudget(t *testing.T) {
 	for _, want := range []string{"client_max_body_size 130m;", "client_body_timeout 300s;", "proxy_request_buffering off;"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("vhost sem %q", want)
+		}
+	}
+}
+
+// O restore.sh do prd e o restore interno esvaziam o schema com o mesmo SQL (ADR-0092).
+func TestClearSchemaSQLMatchesTheRestoreScript(t *testing.T) {
+	b, err := os.ReadFile("../../deploy/oute-server/clear-schema.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != backup.ClearSchemaTemplate {
+		t.Fatal("deploy/oute-server/clear-schema.sql difere de backup.ClearSchemaTemplate; copie o texto do Go para o arquivo")
+	}
+}
+
+// Banco externo (ADR-0092): a URL vem do .env, o Postgres próprio só sobe no profile localdb e o Hanko não monta mais o
+// volume do banco para o alerta db_disk_low.
+func TestComposeTakesTheDatabaseFromEnv(t *testing.T) {
+	b, err := os.ReadFile("../../docker-compose.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, bad := range []string{"HANKO_DATABASE_URL: postgres://", "pgdata:/pgdata-disk", "HANKO_DB_DISK_PATH:", "${POSTGRES_PASSWORD:?"} {
+		if strings.Contains(s, bad) {
+			t.Errorf("docker-compose.yml ainda tem %q", bad)
+		}
+	}
+	for _, want := range []string{"profiles: [localdb]", "required: false", "HANKO_DATABASE_URL: ${HANKO_DATABASE_URL:-postgres://hanko:${POSTGRES_PASSWORD:-}@postgres:5432/"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("docker-compose.yml sem %q", want)
+		}
+	}
+	for _, f := range []string{"backup.sh", "restore.sh", "pglib.sh"} {
+		if out, err := exec.Command("bash", "-n", "../../deploy/oute-server/"+f).CombinedOutput(); err != nil {
+			t.Errorf("bash -n %s: %v %s", f, err, out)
 		}
 	}
 }

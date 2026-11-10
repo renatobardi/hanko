@@ -520,7 +520,7 @@ func (e *env) backupCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(ent)
 			}
-			fmt.Fprintf(e.out, e.t("Backup criado: %s (%s, schema %d, %d conteúdo(s) externo(s))\n"), ent.Path, ops.HumanBytes(ent.Size), ent.Manifest.SchemaVersion, len(ent.Manifest.Blobs))
+			fmt.Fprintf(e.out, e.t("Backup criado: %s (%s, schema %d, schema do banco %s, %d conteúdo(s) externo(s))\n"), ent.Path, ops.HumanBytes(ent.Size), ent.Manifest.SchemaVersion, dbSchemaOf(ent.Manifest), len(ent.Manifest.Blobs))
 			return nil
 		},
 	}
@@ -569,7 +569,7 @@ func (e *env) backupCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(man)
 			}
-			fmt.Fprintf(e.out, e.t("Íntegro: %s (criado em %s, schema %d, dump %s, %d conteúdo(s) externo(s))\n"), args[0], e.fmtTime(man.CreatedAt), man.SchemaVersion, ops.HumanBytes(man.DumpBytes), len(man.Blobs))
+			fmt.Fprintf(e.out, e.t("Íntegro: %s (criado em %s, schema %d, schema do banco %s, dump %s, %d conteúdo(s) externo(s))\n"), args[0], e.fmtTime(man.CreatedAt), man.SchemaVersion, dbSchemaOf(man), ops.HumanBytes(man.DumpBytes), len(man.Blobs))
 			return nil
 		},
 	}
@@ -672,4 +672,12 @@ func (e *env) backupScheduleCmd() *cobra.Command {
 	f.StringVar(&cronExpr, "cron", "", e.t("cron de 5 campos, ex.: \"0 3 * * *\""))
 	f.StringVar(&tz, "timezone", "", e.t("fuso IANA, ex.: America/Sao_Paulo"))
 	return c
+}
+
+// dbSchemaOf é o schema do Postgres coberto pelo backup; os antigos, sem o campo, são de `public` (ADR-0092).
+func dbSchemaOf(m backup.Manifest) string {
+	if m.DBSchema == "" {
+		return backup.DefaultSchema
+	}
+	return m.DBSchema
 }

@@ -222,12 +222,18 @@ selo: `python3 scripts/gen-pwa-icons.py` (Pillow).
 
 ### 3.1 Produção (`hanko-prd`, oute-server)
 
+**Banco (ADR-0092):** o prd usa o schema `hanko_prd` do Postgres compartilhado `oute-supabase-db` (papel `app_hanko_prd`,
+`search_path` fixo). A `HANKO_DATABASE_URL` fica no `.env` do LXC (vem do cofre, item `hanko-prd HANKO_DATABASE_URL`); o
+`backup.sh` e o `restore.sh` a leem de lá e falam com o banco por um contêiner descartável `postgres:17`
+(`HANKO_PG_CLIENT_IMAGE`), com a conexão só em variáveis `PG*`. Sem a variável, ou com host `postgres`, vale o Postgres
+próprio do compose (profile `localdb`) e o comportamento abaixo para banco local.
+
 Duas camadas, que falham de formas diferentes:
 
 | Camada | O quê | Quando | Onde |
 |---|---|---|---|
-| Local (LXC) | `deploy/oute-server/backup.sh`: `pg_dump -Fc` do banco `hanko` + tar do volume do ai-memory (container pausado durante o tar, para o índice SQLite sair consistente) | diário ~01:30 UTC (timer `hanko-backup`, instalado pelo `deploy-prd.sh`) | `/var/backups/hanko` no LXC, 3 gerações + `SHA256SUMS` |
-| Lab (restic) | `pg_dump` do banco feito pelo próprio lab + o diretório acima (`backup_paths`) | semanal, sábado 02:00 (`oute-backup-weekly`) | restic em `/var/backups/restic-oute` no host + sync offsite; alerta no Kuma |
+| Local (LXC) | `deploy/oute-server/backup.sh`: `pg_dump -Fc` do schema `hanko_prd` (banco local: do banco `hanko`) + tar do volume do ai-memory (container pausado durante o tar, para o índice SQLite sair consistente) | diário ~01:30 UTC (timer `hanko-backup`, instalado pelo `deploy-prd.sh`) | `/var/backups/hanko` no LXC, 3 gerações + `SHA256SUMS` |
+| Lab (restic) | o diretório acima (`backup_paths`); o schema também vai no `pg_dump` semanal do `oute-supabase-db` | semanal, sábado 02:00 (`oute-backup-weekly`) | restic em `/var/backups/restic-oute` no host + sync offsite; alerta no Kuma |
 
 O timer roda antes do sábado 02:00, então o restic leva uma cópia local fresca. O `agent-home` (login do claude/codex) e o
 `lgtm` (telemetria) **não** entram no backup: login se refaz (§ "Login do Claude" ao fim do deploy) e a telemetria é descartável.
@@ -241,15 +247,21 @@ ssh oute-server "lxc exec hanko-prd -- systemctl list-timers hanko-backup.timer 
 ssh oute-server "lxc exec hanko-prd -- bash -lc 'systemctl start hanko-backup.service && ls -l /var/backups/hanko && cd /var/backups/hanko && sha256sum -c SHA256SUMS'"
 ```
 
-**Drill mensal (não toca no prd):** restaura o dump mais novo num banco descartável `hanko_restore_check`, imprime o nº de
-tabelas e a última migration aplicada, e apaga o banco.
+**Drill mensal (não toca no prd):** banco local: restaura o dump mais novo num banco descartável `hanko_restore_check`, imprime o
+nº de tabelas e a última migration aplicada, e apaga o banco. Banco externo: não há banco descartável; confere que o dump é
+legível, só tem o schema corrente e que os tars abrem.
 
 ```bash
 ssh oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --check"
 # saída esperada: tabelas=<N> / migration=<versão> / "drill ok (prd intocado)"
 ```
 
-**Restore a partir da cópia local (mesmo LXC):** para o hanko e o ai-memory, renomeia o banco atual para `hanko_pre_restore_<ts>`
+**Restore com banco externo:** para o hanko e o ai-memory, grava o estado atual em `/var/backups/hanko/pre-restore-<ts>.pgdump`,
+esvazia o schema `hanko_prd` (sem apagá-lo: o papel não pode recriar schema) e restaura o dump nele em **uma** transação; falhou,
+nada muda e a stack volta. Dump de outro schema (por exemplo um `hanko-*.pgdump` antigo, do banco local) é recusado: para mudar
+de banco use o `ops/migrate_pg_schema.sh` do `oute-supabase-db`. Mesmo comando abaixo.
+
+**Restore a partir da cópia local (banco local, mesmo LXC):** para o hanko e o ai-memory, renomeia o banco atual para `hanko_pre_restore_<ts>`
 (nunca o dropa), restaura o dump num banco novo `hanko`, repõe o volume do ai-memory, sobe a stack e espera o `/readyz`. Se o
 `pg_restore` falhar, o nome antigo volta e a stack sobe sozinha. Só depois do readyz o script mostra o comando para descartar
 o banco antigo (`DROP DATABASE hanko_pre_restore_<ts>`). Pede confirmação (`--yes` dispensa).
@@ -332,7 +344,10 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 
 ### Alerta de disco do Postgres (`db_disk_low`)
 
-O Postgres roda em outro contêiner, então o Hanko só mede o disco dele se enxergar o volume. O `docker-compose.yml` monta `pgdata` **só para leitura** em `/pgdata-disk` no contêiner do Hanko e define `HANKO_DB_DISK_PATH=/pgdata-disk`; o Hanko só consulta o espaço livre do sistema de arquivos e não lê nem escreve nos dados do banco. Com o caminho, cada empresa com telemetria nos últimos 30 dias recebe `warning` abaixo de `limit.db_disk_warn_gib` (padrão 20 GiB) e `critical` abaixo de `limit.db_disk_critical_gib` (padrão 5 GiB), ajustáveis pela API de ajustes de alerta. Sem `HANKO_DB_DISK_PATH` o alerta não é avaliado. Para desligar: tire a variável e a linha do volume.
+No prd o banco é o `oute-supabase-db` (ADR-0092), cujo disco não é deste LXC: o compose não define `HANKO_DB_DISK_PATH` e o
+alerta não é avaliado. O que segue vale para uma instalação com Postgres próprio que queira o alerta.
+
+O Postgres roda em outro contêiner, então o Hanko só mede o disco dele se enxergar o volume. Monte `pgdata` **só para leitura** (por exemplo em `/pgdata-disk`) no contêiner do Hanko e defina `HANKO_DB_DISK_PATH=/pgdata-disk`; o Hanko só consulta o espaço livre do sistema de arquivos e não lê nem escreve nos dados do banco. Com o caminho, cada empresa com telemetria nos últimos 30 dias recebe `warning` abaixo de `limit.db_disk_warn_gib` (padrão 20 GiB) e `critical` abaixo de `limit.db_disk_critical_gib` (padrão 5 GiB), ajustáveis pela API de ajustes de alerta. Sem `HANKO_DB_DISK_PATH` o alerta não é avaliado. Para desligar: tire a variável e a linha do volume.
 
 ### Backups pelo próprio Hanko (ADR-0062)
 
@@ -348,6 +363,9 @@ hanko doctor                                      # inclui a idade do último ba
 hanko update --channel stable                     # faz backup antes; --rollback volta o binário
 hanko service install                             # systemd/launchd (--user sem root; --dry-run mostra o que faria)
 ```
+
+O `hanko backup` cobre só o schema corrente da conexão (o `search_path`; `public` num banco próprio) e registra o schema no
+manifest; o restore esvazia esse schema e recria tudo numa transação, e recusa backup de outro schema (ADR-0092).
 
 A imagem de contêiner (distroless) não tem `pg_dump`: lá a tela de Backups fica desligada e valem `backup.sh` e o restic.
 

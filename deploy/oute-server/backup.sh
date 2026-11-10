@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Backup do Hanko em produção (roda DENTRO do LXC hanko-prd, como root, pelo timer hanko-backup).
 # Gera, em HANKO_BACKUP_DIR (padrão /var/backups/hanko, modo 0700), um par consistente:
-#   hanko-<UTC>.pgdump         pg_dump -Fc do banco (snapshot transacional; conferido com pg_restore -l)
+#   hanko-<UTC>.pgdump         pg_dump -Fc do banco (snapshot transacional; conferido com pg_restore -l). Com banco
+#                              externo (ADR-0092), só o schema corrente do papel do Hanko (prd: hanko_prd)
 #   aimemory-<UTC>.tar.gz      volume do ai-memory (wiki git + índice SQLite) com o container pausado
 #   blobs-<UTC>.tar            conteúdo dos artefatos no disco (driver fs, ADR-0065), depois do dump: todo arquivo que
 #                              o dump referencia já está gravado (o conteúdo sobe antes da transação do artefato)
@@ -15,6 +16,7 @@ umask 077
 APP_DIR="${HANKO_APP_DIR:-/opt/app}"
 OUT="${HANKO_BACKUP_DIR:-/var/backups/hanko}"
 KEEP="${HANKO_BACKUP_KEEP:-3}"
+# shellcheck disable=SC2034  # usado pelo pglib.sh (modo local)
 PG_USER="${HANKO_PG_USER:-hanko}"
 PG_DB="${HANKO_PG_DB:-hanko}"
 MEM_SERVICE="${HANKO_MEMORY_SERVICE:-ai-memory}"
@@ -24,6 +26,9 @@ TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
 compose() { docker compose -f "${APP_DIR}/docker-compose.yml" --project-directory "$APP_DIR" "$@"; }
 log() { printf '%s backup: %s\n' "$(date -u +%FT%TZ)" "$*"; }
+# shellcheck source=deploy/oute-server/pglib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/pglib.sh"
+pg_mode_init
 
 mkdir -p "$OUT"; chmod 700 "$OUT"
 tmp="$(mktemp -d "${OUT}/.tmp.XXXXXX")"
@@ -34,11 +39,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# 1) Postgres: dump em formato custom (o mesmo que o lab faz; esta cópia é a local/rápida)
-log "pg_dump ${PG_DB}"
-compose exec -T postgres pg_dump -U "$PG_USER" -Fc --no-owner --no-acl "$PG_DB" > "${tmp}/hanko.pgdump"
+# 1) Postgres: dump em formato custom (o mesmo que o lab faz; esta cópia é a local/rápida). Banco externo: só o schema
+#    corrente, pelo contêiner descartável do cliente (o papel não enxerga o resto do banco compartilhado).
+if [[ "$PG_MODE" == external ]]; then
+  log "pg_dump do schema ${PG_SCHEMA} em ${PGHOST}:${PGPORT}/${PGDATABASE}"
+  pgc pg_dump -Fc --no-owner --no-acl --lock-wait-timeout=60000 --schema="$PG_SCHEMA" < /dev/null > "${tmp}/hanko.pgdump"
+else
+  log "pg_dump ${PG_DB}"
+  pgc pg_dump -Fc --no-owner --no-acl "$PG_DB" < /dev/null > "${tmp}/hanko.pgdump"
+fi
 [[ -s "${tmp}/hanko.pgdump" ]] || { log "ERRO: dump vazio"; exit 1; }
-pg_list="$(compose exec -T postgres pg_restore -l < "${tmp}/hanko.pgdump" | wc -l)"
+pg_list="$(pgc pg_restore -l < "${tmp}/hanko.pgdump" | wc -l)"
 (( pg_list > 10 )) || { log "ERRO: dump ilegível (pg_restore -l = ${pg_list} linhas)"; exit 1; }
 
 # 2) ai-memory: pausa o container (congela cgroup, sem perder conexões) enquanto o volume é arquivado,

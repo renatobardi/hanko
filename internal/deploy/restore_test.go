@@ -19,6 +19,18 @@ import (
 
 const fakeDocker = `#!/usr/bin/env bash
 # docker compose -f F --project-directory D <sub> ...
+# docker run --rm -i [-v DIR:/w] -e … postgres:17 <cmd> ...  (cliente do banco externo, ADR-0092): roda <cmd> aqui, com
+# /w trocado pelo diretório montado; as variáveis PG* chegam pelo ambiente, como no -e sem valor do docker de verdade.
+if [[ "$1" == run ]]; then
+  shift; mount=""
+  while [[ $# -gt 0 && "$1" != postgres:* ]]; do
+    if [[ "$1" == -v ]]; then mount="${2%%:*}"; shift; fi
+    shift
+  done
+  shift
+  args=(); for a in "$@"; do args+=("${a//\/w\//$mount/}"); done
+  exec "${args[@]}"
+fi
 [[ "$1" == compose ]] || { echo "fake docker: $*" >&2; exit 0; }
 shift
 while [[ "$1" == -f || "$1" == --project-directory ]]; do shift 2; done
