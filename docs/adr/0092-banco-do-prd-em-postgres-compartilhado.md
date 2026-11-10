@@ -3,7 +3,7 @@ Data: 2026-11-08 · Status: aceita (Bardi, 2026-11-08) · Altera: ADR-0008, ADR-
 
 ## Contexto
 O prd roda o Postgres 17 num contêiner próprio do LXC `hanko-prd` (volume `pgdata`, ~1,1 GB), com backup local
-(`backup.sh`) e o `pg_dump` semanal do lab. O lab tem um Postgres 17 compartilhado no LXC `oute-supabase-db`
+(`backup.sh`) e o `pg_dump` semanal do lab. O lab tem um Postgres 17 compartilhado num LXC próprio
 (`10.173.117.51:5433`), com um schema por projeto: o papel `app_<schema>` é dono do seu schema, tem o `search_path`
 fixo nele, não cria banco nem schema e não enxerga `public` nem os schemas dos outros. Dois apps já migraram para ele, e o
 schema `hanko_prd` (papéis `app_hanko_prd` e `ro_hanko_prd`) já existe. O dump semanal do lab cobre o banco inteiro.

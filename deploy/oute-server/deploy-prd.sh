@@ -119,7 +119,7 @@ HANKO_LOG_FORMAT=json
 CFG
 mv .env.tmp .env; chmod 600 .env; rm -f .env.secrets
 # Banco (ADR-0092): a HANKO_DATABASE_URL do .env manda. Sem ela (instalação nova, anterior à ADR-0092 ou rollback), o
-# banco é o Postgres próprio do compose (profile localdb). Em prd ela aponta para o schema hanko_prd do oute-supabase-db
+# banco é o Postgres próprio do compose (profile localdb). Em prd ela aponta para o schema hanko_prd do Postgres compartilhado do lab
 # e vem do cofre; o deploy nunca a imprime.
 if ! grep -q '^HANKO_DATABASE_URL=' .env || grep -Eq '^HANKO_DATABASE_URL=[^#]*@postgres[:/]' .env; then
   echo 'COMPOSE_PROFILES=memory,localdb' >> .env; echo '==> banco: Postgres próprio (profile localdb)'
@@ -175,7 +175,7 @@ x "docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko update --ch
 
 # 4b) Backup: timer systemd DENTRO do LXC (diário 01:30 UTC) roda deploy/oute-server/backup.sh → /var/backups/hanko
 #     (pg_dump -Fc + tar do ai-memory com o container pausado). O restic semanal do lab coleta esse diretório
-#     (com banco externo, o schema também vai no dump semanal do oute-supabase-db). Idempotente: reescreve as units e reativa.
+#     (com banco externo, o schema também vai no dump semanal do Postgres compartilhado do lab). Idempotente: reescreve as units e reativa.
 # As units saem de `hanko service print` (mesmo gerador testado do `hanko service install`), não de heredocs aqui.
 # O binário é o do PATH: a imagem do prd (Dockerfile.agents) o instala em /usr/local/bin, não em /hanko.
 # Cada unit é gerada num .tmp e só substitui a atual se saiu inteira: uma falha não deixa unit vazia no lugar.

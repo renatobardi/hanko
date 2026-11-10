@@ -47,7 +47,7 @@ log "dump: ${PGDUMP}; memória: ${AIMEM:-<nenhuma>}; artefatos: ${BLOBS:-<nenhum
 pgc pg_restore -l < "$PGDUMP" >/dev/null || { echo "erro: dump ilegível" >&2; exit 1; }
 if [[ "$PG_MODE" == external ]]; then
   outside="$(pgc pg_restore -l < "$PGDUMP" | pg_dump_tables_outside "$PG_SCHEMA" | head -5)"
-  [[ -z "$outside" ]] || { echo "erro: o dump tem tabelas fora do schema ${PG_SCHEMA} (${outside//$'\n'/ }); dump de outro schema não se restaura aqui: use o ops/migrate_pg_schema.sh do oute-supabase-db" >&2; exit 1; }
+  [[ -z "$outside" ]] || { echo "erro: o dump tem tabelas fora do schema ${PG_SCHEMA} (${outside//$'\n'/ }); dump de outro schema não se restaura aqui: use a ferramenta de migração do banco compartilhado (ops/migrate_pg_schema.sh)" >&2; exit 1; }
 fi
 
 if [[ "$MODE" == check && "$PG_MODE" == external ]]; then

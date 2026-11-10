@@ -2,7 +2,7 @@
 # dentro de um LXC próprio, nginx + certbot no host fazendo a borda pública).
 # O .env é gerado DENTRO do LXC por deploy/oute-server/deploy-prd.sh (segredos nunca saem de lá).
 # Banco (ADR-0092): HANKO_DATABASE_URL do .env manda. Em prd aponta para o schema hanko_prd do Postgres compartilhado
-# (oute-supabase-db). Sem ela, o Hanko usa o Postgres próprio daqui, que só sobe com o profile `localdb`
+# do lab. Sem ela, o Hanko usa o Postgres próprio daqui, que só sobe com o profile `localdb`
 # (COMPOSE_PROFILES=memory,localdb; o deploy-prd.sh liga sozinho). Voltar ao banco próprio = tirar a URL do .env.
 # Dev local continua em deploy/compose.yaml.
 name: hanko

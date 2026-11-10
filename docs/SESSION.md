@@ -1,13 +1,13 @@
-# Banco do prd no Postgres compartilhado · ADR-0092
-Data: 2026-11-08
+# Banco do prd no Postgres compartilhado · fechamento (ADR-0092)
+Data: 2026-11-09
 
 ## Feito
-- `hanko backup` escopado ao schema corrente (`--schema`, `db_schema` no manifest); restore esvazia o schema (`clear-schema.sql`) e recria numa transação, recusa outro schema.
-- `docker-compose.yml`: URL do `.env` com fallback para o `postgres` local, que foi para o profile `localdb`; sem volume do banco nem `HANKO_DB_DISK_PATH` (`db_disk_low` desligado no prd).
-- `deploy-prd.sh` liga `localdb` só sem URL externa; pré-deploy sempre faz backup com banco externo. `backup.sh`/`restore.sh` com modo externo (`pglib.sh`, cliente `postgres:17` descartável, senha só em `PG*`).
+- Prd migrado para o schema `hanko_prd` (#217): ensaio + cutover com 204 tabelas / 18.713 linhas iguais por tabela, deploy `ab3469e3`, teste do dono ok.
+- Credencial `app_hanko_prd` no `.env` do LXC e no cofre (hash conferido). Container `hanko-postgres-1` e volume `hanko_pgdata` removidos; backup semanal do lab passou a copiar só `/var/backups/hanko`.
+- Docs e scripts sem citar o produto do banco compartilhado (regra do AGENTS.md).
 
 ## Travado
-- Nada no código; a migração dos dados depende do `ops/migrate_pg_schema.sh` (repo oute-supabase-db) e do cutover pelo Bardi.
+- Nada.
 
 ## Próximo passo
-- Ensaio → cutover → URL no `.env` do hanko-prd e no cofre → `deploy-prd.sh` → teste do dono → remover container/volume `pgdata` e atualizar catálogo/docs.
+- Conferir no log do backup semanal a linha `files hanko from hanko-prd` sem `pg_dump hanko`.
